@@ -1,12 +1,12 @@
 <template>
-  <nav>
+  <nav v-if="isAuthenticated">
     <div class="brand">Reyhan’s Grill Inventory</div>
     <ul>
-      <li v-if="isAuthenticated"><router-link to="/dashboard">Dashboard</router-link></li>
-      <li v-if="isAuthenticated"><router-link to="/materials">Materials</router-link></li>
-      <li v-if="isAuthenticated"><router-link to="/utensils">Utensils</router-link></li>
-      <li v-if="isAuthenticated"><router-link to="/reports">Reports</router-link></li>
-      <li v-if="isAuthenticated"><button class="logout-btn" @click="logout">Logout</button></li>
+      <li><router-link to="/dashboard">Dashboard</router-link></li>
+      <li><router-link to="/materials">Materials</router-link></li>
+      <li><router-link to="/utensils">Utensils</router-link></li>
+      <li><router-link to="/reports">Reports</router-link></li>
+      <li><button class="logout-btn" @click="logout">Logout</button></li>
     </ul>
   </nav>
 </template>
@@ -25,6 +25,10 @@ watchEffect(() => {
 
 function logout() {
   localStorage.removeItem('isAuthenticated')
+  
+  // ✅ Dispatch custom event so App.vue hides navbar immediately
+  window.dispatchEvent(new Event('authChange'))
+  
   router.push('/login')
 }
 </script>
