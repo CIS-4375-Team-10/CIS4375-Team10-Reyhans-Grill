@@ -21,6 +21,7 @@
         <thead>
           <tr>
             <th>Ingredient</th>
+            <th>Qty</th>
             <th>Start Date</th>
             <th>Expected Expiration</th>
           </tr>
@@ -28,6 +29,7 @@
         <tbody>
           <tr v-for="item in filteredMaterials" :key="item.name">
             <td>{{ item.name }}</td>
+            <td>{{ item.quantity }}</td>
             <td>{{ item.startDate }}</td>
             <td>{{ item.expiration }}</td>
           </tr>
@@ -39,7 +41,6 @@
 </template>
 
 <script setup>
-import Navbar from '../components/Navbar.vue'
 import { ref, computed } from 'vue'
 
 // Food groups with emoji icons
@@ -48,22 +49,27 @@ const foodGroups = [
   { name: 'Vegetables', icon: '🥦' },
   { name: 'Grains', icon: '🌾' },
   { name: 'Protein', icon: '🍗' },
-  { name: 'Dairy', icon: '🥛' }  // Milk carton emoji
+  { name: 'Dairy', icon: '🥛' }, 
+  { name: 'Drinks', icon: '🥤' }
 ]
+
 const selectedGroup = ref('Fruits')
 
-// Hardcoded example materials with start and expiration dates
+// Hardcoded example materials with start, expiration dates, and quantities
 const materials = ref([
-  { name: 'Apple', startDate: '2025-10-15', expiration: '2025-10-25', group: 'Fruits' },
-  { name: 'Banana', startDate: '2025-10-16', expiration: '2025-10-22', group: 'Fruits' },
-  { name: 'Carrot', startDate: '2025-10-14', expiration: '2025-10-30', group: 'Vegetables' },
-  { name: 'Spinach', startDate: '2025-10-15', expiration: '2025-10-24', group: 'Vegetables' },
-  { name: 'Rice', startDate: '2025-09-01', expiration: '2026-01-15', group: 'Grains' },
-  { name: 'Bread', startDate: '2025-10-18', expiration: '2025-10-20', group: 'Grains' },
-  { name: 'Chicken', startDate: '2025-10-17', expiration: '2025-10-21', group: 'Protein' },
-  { name: 'Beef', startDate: '2025-10-16', expiration: '2025-10-23', group: 'Protein' },
-  { name: 'Milk', startDate: '2025-10-14', expiration: '2025-10-18', group: 'Dairy' },
-  { name: 'Cheese', startDate: '2025-10-10', expiration: '2025-11-05', group: 'Dairy' },
+  { name: 'Apple', quantity: 50, startDate: '2025-10-15', expiration: '2025-10-25', group: 'Fruits' },
+  { name: 'Banana', quantity: 30, startDate: '2025-10-16', expiration: '2025-10-22', group: 'Fruits' },
+  { name: 'Carrot', quantity: 40, startDate: '2025-10-14', expiration: '2025-10-30', group: 'Vegetables' },
+  { name: 'Spinach', quantity: 25, startDate: '2025-10-15', expiration: '2025-10-24', group: 'Vegetables' },
+  { name: 'Rice', quantity: 100, startDate: '2025-09-01', expiration: '2026-01-15', group: 'Grains' },
+  { name: 'Bread', quantity: 20, startDate: '2025-10-18', expiration: '2025-10-20', group: 'Grains' },
+  { name: 'Chicken', quantity: 15, startDate: '2025-10-17', expiration: '2025-10-21', group: 'Protein' },
+  { name: 'Beef', quantity: 10, startDate: '2025-10-16', expiration: '2025-10-23', group: 'Protein' },
+  { name: 'Milk', quantity: 30, startDate: '2025-10-14', expiration: '2025-10-18', group: 'Dairy' },
+  { name: 'Cheese', quantity: 25, startDate: '2025-10-10', expiration: '2025-11-05', group: 'Dairy' },
+  { name: 'Cola', quantity: 60, startDate: '2025-10-01', expiration: '2026-01-01', group: 'Drinks' },
+  { name: 'Orange Juice', quantity: 35, startDate: '2025-10-03', expiration: '2025-11-01', group: 'Drinks' },
+  { name: 'Water Bottle', quantity: 80, startDate: '2025-10-05', expiration: '2027-10-05', group: 'Drinks' }
 ])
 
 // Filter materials based on selected tab
@@ -123,22 +129,22 @@ const filteredMaterials = computed(() =>
   border-radius: 16px;
   padding: 1.5rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  max-width: 800px;
+  max-width: 900px;
   margin: 0 auto;
-  overflow: hidden; /* Prevent content from overflowing the box */
+  overflow: hidden;
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
-  table-layout: fixed; /* This makes columns evenly spaced */
+  table-layout: fixed;
 }
 
 th, td {
   text-align: left;
   padding: 0.75rem;
   border-bottom: 1px solid #D1D5DB;
-  word-wrap: break-word; /* Handle long text in cells */
+  word-wrap: break-word;
 }
 
 th {
@@ -151,19 +157,24 @@ td {
   font-weight: 500;
 }
 
-/* Ensure all columns have equal width */
+/* Equal width columns */
 th:nth-child(1),
 td:nth-child(1) {
-  width: 33.33%;
+  width: 25%;
 }
 
 th:nth-child(2),
 td:nth-child(2) {
-  width: 33.33%;
+  width: 15%;
 }
 
 th:nth-child(3),
 td:nth-child(3) {
-  width: 33.33%;
+  width: 30%;
+}
+
+th:nth-child(4),
+td:nth-child(4) {
+  width: 30%;
 }
 </style>
