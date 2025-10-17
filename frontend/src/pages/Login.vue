@@ -17,7 +17,7 @@ function login() {
     
     router.push('/dashboard')
   } else {
-    error.value = 'Invalid credentials. Use admin/admin'
+    error.value = 'Invalid credentials.';
   }
 }
 </script>
@@ -36,7 +36,6 @@ function login() {
       </div>
       <button type="submit">Login</button>
       <p v-if="error" class="error">{{ error }}</p>
-      <p class="hint">Hint: Use username: admin, password: admin</p>
     </form>
   </div>
 </template>
