@@ -1,6 +1,5 @@
 <template>
   <main class="materials-container">
-
     <h2 class="page-title">Materials Inventory</h2>
 
     <!-- Tabs -->
@@ -14,6 +13,21 @@
         {{ group.icon }} {{ group.name }}
       </button>
     </div>
+
+    <!-- ✅ Add New Material Form -->
+    <form class="add-form" @submit.prevent="addMaterial">
+      <input v-model="newMaterial.name" placeholder="Material Name" required />
+      <select v-model="newMaterial.group" required>
+        <option disabled value="">Select Category</option>
+        <option v-for="group in foodGroups" :key="group.name" :value="group.name">
+          {{ group.icon }} {{ group.name }}
+        </option>
+      </select>
+      <input v-model.number="newMaterial.quantity" type="number" placeholder="Qty" required />
+      <input v-model="newMaterial.startDate" type="date" required />
+      <input v-model="newMaterial.expiration" type="date" required />
+      <button type="submit">Add Material</button>
+    </form>
 
     <!-- Materials Table -->
     <div class="table-container">
@@ -36,7 +50,6 @@
         </tbody>
       </table>
     </div>
-
   </main>
 </template>
 
@@ -45,17 +58,17 @@ import { ref, computed } from 'vue'
 
 // Food groups with emoji icons
 const foodGroups = [
-  { name: 'Fruits', icon: '🍌'  },
+  { name: 'Fruits', icon: '🍌' },
   { name: 'Vegetables', icon: '🥦' },
   { name: 'Grains', icon: '🌾' },
   { name: 'Protein', icon: '🍗' },
-  { name: 'Dairy', icon: '🥛' }, 
+  { name: 'Dairy', icon: '🥛' },
   { name: 'Drinks', icon: '🥤' }
 ]
 
 const selectedGroup = ref('Fruits')
 
-// Hardcoded example materials with start, expiration dates, and quantities
+// Hardcoded example materials
 const materials = ref([
   { name: 'Apple', quantity: 50, startDate: '2025-10-15', expiration: '2025-10-25', group: 'Fruits' },
   { name: 'Banana', quantity: 30, startDate: '2025-10-16', expiration: '2025-10-22', group: 'Fruits' },
@@ -72,7 +85,33 @@ const materials = ref([
   { name: 'Water Bottle', quantity: 80, startDate: '2025-10-05', expiration: '2027-10-05', group: 'Drinks' }
 ])
 
-// Filter materials based on selected tab
+// For the new material form
+const newMaterial = ref({
+  name: '',
+  quantity: null,
+  startDate: '',
+  expiration: '',
+  group: ''
+})
+
+// Add material function
+function addMaterial() {
+  if (
+    !newMaterial.value.name ||
+    !newMaterial.value.quantity ||
+    !newMaterial.value.startDate ||
+    !newMaterial.value.expiration ||
+    !newMaterial.value.group
+  ) {
+    alert('Please fill all fields')
+    return
+  }
+
+  materials.value.push({ ...newMaterial.value })
+  newMaterial.value = { name: '', quantity: null, startDate: '', expiration: '', group: '' }
+}
+
+// Filter by selected tab
 const filteredMaterials = computed(() =>
   materials.value.filter(item => item.group === selectedGroup.value)
 )
@@ -120,6 +159,39 @@ const filteredMaterials = computed(() =>
 }
 
 .tab-button.active {
+  background-color: #8B2E1D;
+}
+
+/* ✅ Form Styles */
+.add-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.add-form input,
+.add-form select {
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid #D1D5DB;
+  font-size: 1rem;
+  width: 180px;
+}
+
+.add-form button {
+  background-color: #D97706;
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.3s;
+}
+
+.add-form button:hover {
   background-color: #8B2E1D;
 }
 
