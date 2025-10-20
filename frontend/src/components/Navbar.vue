@@ -6,6 +6,7 @@
       <li><router-link to="/materials">Materials</router-link></li>
       <li><router-link to="/utensils">Utensils</router-link></li>
       <li><router-link to="/reports">Reports</router-link></li>
+      <li><router-link to="/orders">Orders</router-link></li>
       <li><button class="logout-btn" @click="logout">Logout</button></li>
     </ul>
   </nav>
@@ -18,7 +19,7 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const isAuthenticated = ref(localStorage.getItem('isAuthenticated') === 'true')
 
-// ✅ Watch localStorage changes to update Navbar automatically
+// Watch localStorage changes to update Navbar automatically
 watchEffect(() => {
   isAuthenticated.value = localStorage.getItem('isAuthenticated') === 'true'
 })
@@ -26,7 +27,7 @@ watchEffect(() => {
 function logout() {
   localStorage.removeItem('isAuthenticated')
   
-  // ✅ Dispatch custom event so App.vue hides navbar immediately
+  // Dispatch custom event so App.vue hides navbar immediately
   window.dispatchEvent(new Event('authChange'))
   
   router.push('/login')

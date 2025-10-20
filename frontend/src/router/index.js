@@ -4,6 +4,7 @@ import Dashboard from '../pages/Dashboard.vue'
 import Materials from '../pages/Materials.vue'
 import Utensils from '../pages/Utensils.vue'
 import Reports from '../pages/Reports.vue'
+import Order from '../pages/Order.vue'
 
 const routes = [
   { path: '/login', component: Login, name: 'login' },
@@ -11,7 +12,8 @@ const routes = [
   { path: '/materials', component: Materials, name: 'materials' },
   { path: '/utensils', component: Utensils, name: 'utensils' },
   { path: '/reports', component: Reports, name: 'reports' },
-  { path: '/', component: Login } // Use component instead of redirect
+  { path: '/orders', component: Order, name: 'order' }, 
+  { path: '/', component: Login } // root path
 ]
 
 const router = createRouter({
@@ -19,11 +21,11 @@ const router = createRouter({
   routes
 })
 
-// ✅ Enhanced navigation guard
+// ✅ Navigation guard for authentication
 router.beforeEach((to, from, next) => {
   const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true'
   
-  // Handle root path - replace instead of redirect to avoid history issues
+  // Handle root path
   if (to.path === '/') {
     if (isAuthenticated) {
       next('/dashboard')
@@ -33,13 +35,13 @@ router.beforeEach((to, from, next) => {
     return
   }
   
-  // Protect routes if not authenticated
+  // Protect authenticated routes
   if (!isAuthenticated && to.path !== '/login') {
     next('/login')
     return
   }
   
-  // Redirect authenticated users away from login
+  // Redirect authenticated users from login
   if (isAuthenticated && to.path === '/login') {
     next('/dashboard')
     return
