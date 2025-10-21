@@ -1,4 +1,3 @@
-<!-- src/components/PieChart.vue -->
 <template>
   <div class="p-4 bg-white rounded-2xl shadow-md">
     <h2 class="text-xl font-bold mb-2 text-[#8B2E1D]"></h2>

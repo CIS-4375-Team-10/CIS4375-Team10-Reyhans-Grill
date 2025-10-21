@@ -14,7 +14,7 @@
       </button>
     </div>
 
-    <!-- ✅ Add New Utensil Form -->
+    <!-- ✅Add New Utensil Form -->
     <form class="add-form" @submit.prevent="addUtensil">
       <input v-model="newUtensil.name" placeholder="Utensil Name" required />
       <select v-model="newUtensil.category" required>
