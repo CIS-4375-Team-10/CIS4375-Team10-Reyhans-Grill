@@ -1,6 +1,12 @@
 <template>
   <nav v-if="isAuthenticated">
-    <div class="brand">Reyhan’s Grill Inventory</div>
+    <!-- Left: Logo + Name -->
+    <div class="brand">
+      <img src="@/assets/ReyhansGrillFinal.png" alt="Reyhan's Grill Logo" class="logo" />
+      <span class="brand-name">Reyhan's Grill Inventory</span>
+    </div>
+
+    <!-- Navigation Links -->
     <ul>
       <li><router-link to="/dashboard">Dashboard</router-link></li>
       <li><router-link to="/materials">Materials</router-link></li>
@@ -45,10 +51,22 @@ nav {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
+/* Brand / Logo + Name */
 .brand {
-  font-size: 1.4rem;
+  display: flex;
+  align-items: center;
+  gap: 10px; /* space between logo and name */
+}
+
+.logo {
+  height: 50px;
+  width: auto;
+  object-fit: contain;
+}
+
+.brand-name {
+  font-size: 1.3rem;
   font-weight: bold;
-  letter-spacing: 1px;
   color: #FBBF24;
 }
 
