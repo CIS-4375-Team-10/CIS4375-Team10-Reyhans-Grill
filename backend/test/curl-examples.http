@@ -1,0 +1,73 @@
+### Create a new inventory item
+POST http://localhost:8080/admin/items
+Content-Type: application/json
+
+{
+  "name": "Test Bun",
+  "type": "INGREDIENT",
+  "uom": "pcs",
+  "decimals": 0,
+  "lowStockThreshold": 25,
+  "initialOnHand": 100
+}
+
+### Update an inventory item
+PATCH http://localhost:8080/admin/items/1
+Content-Type: application/json
+
+{
+  "lowStockThreshold": 50
+}
+
+### Manual adjustment (subtract 5 units)
+POST http://localhost:8080/admin/items/1/adjust
+Content-Type: application/json
+
+{
+  "delta": -5,
+  "reason": "MANUAL",
+  "note": "Used for catering order"
+}
+
+### Sync Square catalog variations
+POST http://localhost:8080/admin/catalog/sync
+
+### Define a recipe component
+POST http://localhost:8080/admin/recipes
+Content-Type: application/json
+
+{
+  "variationId": "VARIATION_BURGER_STD",
+  "inventoryItemId": 1,
+  "qtyPerSale": 2,
+  "modifierCatalogObjectId": ""
+}
+
+### Inspect recipe components for a variation
+GET http://localhost:8080/admin/recipes/VARIATION_BURGER_STD
+
+### Get low stock items
+GET http://localhost:8080/admin/low-stock
+
+### Paginated ledger (first 20 entries)
+GET http://localhost:8080/admin/ledger?limit=20&offset=0
+
+### Simulated webhook call (development only)
+### NOTE: In dev you can set ALLOW_UNVERIFIED_WEBHOOKS=true to skip signature checks
+POST http://localhost:8080/webhooks/square
+Content-Type: application/json
+X-Square-Hmacsha256-Signature: REPLACE_IN_PROD
+
+{
+  "event_id": "evt-sample-payment-1",
+  "type": "payment.updated",
+  "data": {
+    "object": {
+      "payment": {
+        "id": "PAYMENT_ID_FROM_SQUARE",
+        "status": "COMPLETED",
+        "orderId": "ORDER_ID_FROM_SQUARE"
+      }
+    }
+  }
+}
