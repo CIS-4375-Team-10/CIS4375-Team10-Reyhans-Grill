@@ -14,6 +14,7 @@ import { generateId } from '../utils/id.js'
 const pool = getPool()
 
 const statusEnum = ['AVAILABLE', 'LOW', 'OUT_OF_STOCK']
+const itemTypes = ['MATERIAL', 'UTENSIL', 'OTHER']
 
 // Accept a date in YYYY-MM-DD format
 const dateString = z
@@ -32,7 +33,10 @@ const itemSchema = z.object({
   unitCost: z.coerce.number().nonnegative(),
   shelfLifeDays: z.coerce.number().int().nonnegative(),
   expirationDate: expirationDateSchema,
-  status: z.enum(statusEnum).default('AVAILABLE')
+  status: z.enum(statusEnum).default('AVAILABLE'),
+  itemType: z.enum(itemTypes).default('MATERIAL'),
+  parLevel: z.coerce.number().int().nonnegative().optional(),
+  reorderPoint: z.coerce.number().int().nonnegative().optional()
 })
 
 const paramsSchema = z.object({
@@ -49,7 +53,10 @@ export const listItems = asyncHandler(async (req, res) => {
             i.Unit_Cost AS unitCost,
             i.Shelf_Life_Days AS shelfLifeDays,
             i.Expiration_Date AS expirationDate,
-            i.Status AS status
+            i.Status AS status,
+            i.Item_Type AS itemType,
+            i.Par_Level AS parLevel,
+            i.Reorder_Point AS reorderPoint
        FROM Item i
        JOIN Category c ON c.Category_ID = i.Category_ID
       ORDER BY i.Item_Name ASC`
@@ -63,8 +70,8 @@ export const createItem = asyncHandler(async (req, res) => {
 
   await pool.query(
     `INSERT INTO Item
-      (Item_ID, Item_Name, Category_ID, Quantity_in_Stock, Unit_Cost, Shelf_Life_Days, Expiration_Date, Status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      (Item_ID, Item_Name, Category_ID, Quantity_in_Stock, Unit_Cost, Shelf_Life_Days, Expiration_Date, Status, Item_Type, Par_Level, Reorder_Point)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       itemId,
       payload.itemName,
@@ -73,7 +80,10 @@ export const createItem = asyncHandler(async (req, res) => {
       payload.unitCost,
       payload.shelfLifeDays,
       payload.expirationDate || null,
-      payload.status
+      payload.status,
+      payload.itemType,
+      payload.parLevel ?? 0,
+      payload.reorderPoint ?? 0
     ]
   )
 
@@ -86,7 +96,10 @@ export const createItem = asyncHandler(async (req, res) => {
             i.Unit_Cost AS unitCost,
             i.Shelf_Life_Days AS shelfLifeDays,
             i.Expiration_Date AS expirationDate,
-            i.Status AS status
+            i.Status AS status,
+            i.Item_Type AS itemType,
+            i.Par_Level AS parLevel,
+            i.Reorder_Point AS reorderPoint
        FROM Item i
        JOIN Category c ON c.Category_ID = i.Category_ID
       WHERE i.Item_ID = ?`,
@@ -110,7 +123,10 @@ export const updateItem = asyncHandler(async (req, res) => {
     unitCost: 'Unit_Cost',
     shelfLifeDays: 'Shelf_Life_Days',
     expirationDate: 'Expiration_Date',
-    status: 'Status'
+    status: 'Status',
+    itemType: 'Item_Type',
+    parLevel: 'Par_Level',
+    reorderPoint: 'Reorder_Point'
   }
 
   Object.entries(payload).forEach(([key, value]) => {
@@ -142,7 +158,10 @@ export const updateItem = asyncHandler(async (req, res) => {
             i.Unit_Cost AS unitCost,
             i.Shelf_Life_Days AS shelfLifeDays,
             i.Expiration_Date AS expirationDate,
-            i.Status AS status
+            i.Status AS status,
+            i.Item_Type AS itemType,
+            i.Par_Level AS parLevel,
+            i.Reorder_Point AS reorderPoint
        FROM Item i
        JOIN Category c ON c.Category_ID = i.Category_ID
       WHERE i.Item_ID = ?`,

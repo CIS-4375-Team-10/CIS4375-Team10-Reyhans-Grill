@@ -4,11 +4,12 @@
 
     <div class="tabs">
       <button
-        v-for="group in materialCategories"
+        v-for="group in materialTabs"
         :key="group.categoryId"
         :class="['tab-button', { active: selectedCategory === group.categoryId }]"
         @click="selectedCategory = group.categoryId"
       >
+        <span class="tab-icon">{{ group.icon }}</span>
         {{ group.categoryName }}
       </button>
     </div>
@@ -17,7 +18,7 @@
       <input v-model="newMaterial.itemName" placeholder="Material Name" required />
       <select v-model="newMaterial.categoryId" required>
         <option disabled value="">Select Category</option>
-        <option v-for="group in materialCategories" :key="group.categoryId" :value="group.categoryId">
+        <option v-for="group in materialTabs" :key="group.categoryId" :value="group.categoryId">
           {{ group.categoryName }}
         </option>
       </select>
@@ -25,9 +26,6 @@
       <input v-model.number="newMaterial.unitCost" type="number" step="0.01" min="0" placeholder="Unit Cost ($)" required />
       <input v-model.number="newMaterial.shelfLifeDays" type="number" min="0" placeholder="Shelf Life (days)" required />
       <input v-model="newMaterial.expirationDate" type="date" />
-      <select v-model="newMaterial.status" required>
-        <option v-for="status in statusOptions" :key="status" :value="status">{{ status }}</option>
-      </select>
       <button type="submit" :disabled="isSubmitting">
         {{ isSubmitting ? 'Saving...' : 'Add Material' }}
       </button>
@@ -71,10 +69,26 @@ import { useInventoryStore } from '../stores/inventoryStore'
 
 const inventoryStore = useInventoryStore()
 
-const statusOptions = ['AVAILABLE', 'LOW', 'OUT_OF_STOCK']
+const MATERIAL_TABS = [
+  { categoryId: 'CAT_FRUITS', label: 'Fruits', icon: '🍎' },
+  { categoryId: 'CAT_VEG', label: 'Vegetables', icon: '🥕' },
+  { categoryId: 'CAT_GRAINS', label: 'Grains', icon: '🌾' },
+  { categoryId: 'CAT_PROTEIN', label: 'Protein', icon: '🍗' },
+  { categoryId: 'CAT_DAIRY', label: 'Dairy', icon: '🥛' },
+  { categoryId: 'CAT_DRINK', label: 'Drinks', icon: '🥤' }
+]
 
-const materialCategories = computed(() => inventoryStore.materialCategoryOptions)
-const selectedCategory = ref('')
+const materialTabs = computed(() =>
+  MATERIAL_TABS.map(tab => {
+    const match = inventoryStore.materialCategoryOptions.find(cat => cat.categoryId === tab.categoryId)
+    return {
+      ...tab,
+      categoryName: match?.categoryName ?? tab.label
+    }
+  })
+)
+
+const selectedCategory = ref(materialTabs.value[0]?.categoryId ?? '')
 const isSubmitting = ref(false)
 
 const newMaterial = ref({
@@ -84,15 +98,16 @@ const newMaterial = ref({
   unitCost: null,
   shelfLifeDays: null,
   expirationDate: '',
-  status: 'AVAILABLE'
+  status: 'AVAILABLE',
+  itemType: 'MATERIAL'
 })
 
 watch(
-  materialCategories,
-  categories => {
-    if (!selectedCategory.value && categories.length) {
-      selectedCategory.value = categories[0].categoryId
-      newMaterial.value.categoryId = categories[0].categoryId
+  materialTabs,
+  tabs => {
+    if (!selectedCategory.value && tabs.length) {
+      selectedCategory.value = tabs[0].categoryId
+      newMaterial.value.categoryId = tabs[0].categoryId
     }
   },
   { immediate: true }
@@ -107,7 +122,12 @@ const addMaterial = async () => {
 
   try {
     isSubmitting.value = true
-    await inventoryStore.createItem({ ...newMaterial.value })
+    await inventoryStore.createItem({
+      ...newMaterial.value,
+      itemType: 'MATERIAL',
+      parLevel: newMaterial.value.parLevel ?? 0,
+      reorderPoint: newMaterial.value.reorderPoint ?? 0
+    })
     newMaterial.value = {
       itemName: '',
       categoryId: selectedCategory.value,
@@ -115,7 +135,8 @@ const addMaterial = async () => {
       unitCost: null,
       shelfLifeDays: null,
       expirationDate: '',
-      status: 'AVAILABLE'
+      status: 'AVAILABLE',
+      itemType: 'MATERIAL'
     }
   } catch (error) {
     alert(error.message ?? 'Unable to add material right now.')
@@ -172,6 +193,10 @@ onMounted(() => {
   cursor: pointer;
   transition: background-color 0.2s;
   font-size: 1rem;
+}
+
+.tab-icon {
+  margin-right: 0.4rem;
 }
 
 .tab-button:hover {

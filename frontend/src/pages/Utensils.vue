@@ -4,11 +4,12 @@
 
     <div class="tabs">
       <button
-        v-for="category in utensilCategories"
+        v-for="category in utensilTabs"
         :key="category.categoryId"
         :class="['tab-button', { active: selectedCategory === category.categoryId }]"
         @click="selectedCategory = category.categoryId"
       >
+        <span class="tab-icon">{{ category.icon }}</span>
         {{ category.categoryName }}
       </button>
     </div>
@@ -17,16 +18,13 @@
       <input v-model="newUtensil.itemName" placeholder="Utensil Name" required />
       <select v-model="newUtensil.categoryId" required>
         <option disabled value="">Select Category</option>
-        <option v-for="category in utensilCategories" :key="category.categoryId" :value="category.categoryId">
+        <option v-for="category in utensilTabs" :key="category.categoryId" :value="category.categoryId">
           {{ category.categoryName }}
         </option>
       </select>
       <input v-model.number="newUtensil.quantityInStock" type="number" min="0" placeholder="Qty" required />
       <input v-model.number="newUtensil.unitCost" type="number" min="0" step="0.01" placeholder="Unit Cost ($)" required />
       <input v-model.number="newUtensil.shelfLifeDays" type="number" min="0" placeholder="Shelf Life (days)" required />
-      <select v-model="newUtensil.status" required>
-        <option v-for="status in statusOptions" :key="status" :value="status">{{ status }}</option>
-      </select>
       <button type="submit" :disabled="isSubmitting">
         {{ isSubmitting ? 'Saving...' : 'Add Utensil' }}
       </button>
@@ -67,10 +65,25 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useInventoryStore } from '../stores/inventoryStore'
 
 const inventoryStore = useInventoryStore()
-const statusOptions = ['AVAILABLE', 'LOW', 'OUT_OF_STOCK']
+const UTENSIL_TABS = [
+  { categoryId: 'CAT_COOK', label: 'Cooking', icon: '🍳' },
+  { categoryId: 'CAT_SERVE', label: 'Serving', icon: '🍽️' },
+  { categoryId: 'CAT_BAKE', label: 'Baking', icon: '🧁' },
+  { categoryId: 'CAT_CUT', label: 'Cutlery', icon: '🔪' },
+  { categoryId: 'CAT_STORE', label: 'Storage', icon: '🧺' }
+]
 
-const utensilCategories = computed(() => inventoryStore.utensilCategoryOptions)
-const selectedCategory = ref('')
+const utensilTabs = computed(() =>
+  UTENSIL_TABS.map(tab => {
+    const match = inventoryStore.utensilCategoryOptions.find(cat => cat.categoryId === tab.categoryId)
+    return {
+      ...tab,
+      categoryName: match?.categoryName ?? tab.label
+    }
+  })
+)
+
+const selectedCategory = ref(utensilTabs.value[0]?.categoryId ?? '')
 const isSubmitting = ref(false)
 
 const newUtensil = ref({
@@ -80,15 +93,16 @@ const newUtensil = ref({
   unitCost: null,
   shelfLifeDays: null,
   expirationDate: '',
-  status: 'AVAILABLE'
+  status: 'AVAILABLE',
+  itemType: 'UTENSIL'
 })
 
 watch(
-  utensilCategories,
-  categories => {
-    if (!selectedCategory.value && categories.length) {
-      selectedCategory.value = categories[0].categoryId
-      newUtensil.value.categoryId = categories[0].categoryId
+  utensilTabs,
+  tabs => {
+    if (!selectedCategory.value && tabs.length) {
+      selectedCategory.value = tabs[0].categoryId
+      newUtensil.value.categoryId = tabs[0].categoryId
     }
   },
   { immediate: true }
@@ -103,7 +117,12 @@ const addUtensil = async () => {
 
   try {
     isSubmitting.value = true
-    await inventoryStore.createItem({ ...newUtensil.value })
+    await inventoryStore.createItem({
+      ...newUtensil.value,
+      itemType: 'UTENSIL',
+      parLevel: newUtensil.value.parLevel ?? 0,
+      reorderPoint: newUtensil.value.reorderPoint ?? 0
+    })
     newUtensil.value = {
       itemName: '',
       categoryId: selectedCategory.value,
@@ -111,7 +130,8 @@ const addUtensil = async () => {
       unitCost: null,
       shelfLifeDays: null,
       expirationDate: '',
-      status: 'AVAILABLE'
+      status: 'AVAILABLE',
+      itemType: 'UTENSIL'
     }
   } catch (error) {
     alert(error.message ?? 'Unable to add utensil right now.')
@@ -168,6 +188,10 @@ onMounted(() => {
   cursor: pointer;
   transition: background-color 0.2s;
   font-size: 1rem;
+}
+
+.tab-icon {
+  margin-right: 0.4rem;
 }
 
 .tab-button:hover {

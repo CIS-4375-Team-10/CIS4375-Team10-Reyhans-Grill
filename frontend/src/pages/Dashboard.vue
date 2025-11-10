@@ -5,7 +5,7 @@
 
       <div class="cards-container">
         <div class="card">
-          <div class="icon">??</div>
+          <div class="icon">🥩</div>
           <div class="info">
             <h3>Total Materials</h3>
             <p>{{ totalMaterials }}</p>
@@ -13,7 +13,7 @@
         </div>
 
         <div class="card">
-          <div class="icon">??</div>
+          <div class="icon">🍴</div>
           <div class="info">
             <h3>Utensils in Use</h3>
             <p>{{ utensilsInUse }}</p>
@@ -21,7 +21,7 @@
         </div>
 
         <div class="card">
-          <div class="icon">??</div>
+          <div class="icon">💰</div>
           <div class="info">
             <h3>Weekly Cost ($)</h3>
             <p>{{ weeklyCost }}</p>
@@ -29,7 +29,7 @@
         </div>
 
         <div class="card">
-          <div class="icon">??</div>
+          <div class="icon">⚠️</div>
           <div class="info">
             <h3>Low Stock Items</h3>
             <p>{{ lowStockItems.join(', ') || 'None' }}</p>
@@ -37,7 +37,7 @@
         </div>
 
         <div class="card">
-          <div class="icon">?</div>
+          <div class="icon">⏳</div>
           <div class="info">
             <h3>Expiring Soon</h3>
             <p>{{ expiringSoon.join(', ') || 'All good' }}</p>
