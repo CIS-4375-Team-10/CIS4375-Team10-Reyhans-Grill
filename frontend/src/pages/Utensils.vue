@@ -2,50 +2,58 @@
   <main class="utensils-container">
     <h2 class="page-title">Utensils Inventory</h2>
 
-    <!-- Tabs -->
     <div class="tabs">
       <button
         v-for="category in utensilCategories"
-        :key="category.name"
-        :class="['tab-button', { active: selectedCategory === category.name }]"
-        @click="selectedCategory = category.name"
+        :key="category.categoryId"
+        :class="['tab-button', { active: selectedCategory === category.categoryId }]"
+        @click="selectedCategory = category.categoryId"
       >
-        {{ category.icon }} {{ category.name }}
+        {{ category.categoryName }}
       </button>
     </div>
 
-    <!-- ✅Add New Utensil Form -->
     <form class="add-form" @submit.prevent="addUtensil">
-      <input v-model="newUtensil.name" placeholder="Utensil Name" required />
-      <select v-model="newUtensil.category" required>
+      <input v-model="newUtensil.itemName" placeholder="Utensil Name" required />
+      <select v-model="newUtensil.categoryId" required>
         <option disabled value="">Select Category</option>
-        <option v-for="category in utensilCategories" :key="category.name" :value="category.name">
-          {{ category.icon }} {{ category.name }}
+        <option v-for="category in utensilCategories" :key="category.categoryId" :value="category.categoryId">
+          {{ category.categoryName }}
         </option>
       </select>
-      <input v-model.number="newUtensil.quantity" type="number" placeholder="Qty" required />
-      <input v-model="newUtensil.purchaseDate" type="date" required />
-      <input v-model="newUtensil.condition" placeholder="Condition (e.g., New, Used)" required />
-      <button type="submit">Add Utensil</button>
+      <input v-model.number="newUtensil.quantityInStock" type="number" min="0" placeholder="Qty" required />
+      <input v-model.number="newUtensil.unitCost" type="number" min="0" step="0.01" placeholder="Unit Cost ($)" required />
+      <input v-model.number="newUtensil.shelfLifeDays" type="number" min="0" placeholder="Shelf Life (days)" required />
+      <select v-model="newUtensil.status" required>
+        <option v-for="status in statusOptions" :key="status" :value="status">{{ status }}</option>
+      </select>
+      <button type="submit" :disabled="isSubmitting">
+        {{ isSubmitting ? 'Saving...' : 'Add Utensil' }}
+      </button>
     </form>
 
-    <!-- Utensils Table -->
     <div class="table-container">
-      <table>
+      <div v-if="inventoryStore.loading.items" class="status-message">Loading utensils...</div>
+      <div v-else-if="!filteredUtensils.length" class="status-message">
+        No utensils tracked in this category yet.
+      </div>
+      <table v-else>
         <thead>
           <tr>
             <th>Utensil</th>
             <th>Qty</th>
-            <th>Purchase Date</th>
-            <th>Condition</th>
+            <th>Unit Cost</th>
+            <th>Shelf Life (days)</th>
+            <th>Status</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in filteredUtensils" :key="item.name">
-            <td>{{ item.name }}</td>
-            <td>{{ item.quantity }}</td>
-            <td>{{ item.purchaseDate }}</td>
-            <td>{{ item.condition }}</td>
+          <tr v-for="item in filteredUtensils" :key="item.itemId">
+            <td>{{ item.itemName }}</td>
+            <td>{{ item.quantityInStock }}</td>
+            <td>${{ Number(item.unitCost).toFixed(2) }}</td>
+            <td>{{ item.shelfLifeDays }}</td>
+            <td>{{ item.status }}</td>
           </tr>
         </tbody>
       </table>
@@ -54,64 +62,75 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
-// Categories with emoji icons
-const utensilCategories = [
-  { name: 'Cooking', icon: '🍳' },
-  { name: 'Serving', icon: '🍽️' },
-  { name: 'Baking', icon: '🥧' },
-  { name: 'Cutlery', icon: '🔪' },
-  { name: 'Storage', icon: '🧺' }
-]
+import { useInventoryStore } from '../stores/inventoryStore'
 
-const selectedCategory = ref('Cooking')
+const inventoryStore = useInventoryStore()
+const statusOptions = ['AVAILABLE', 'LOW', 'OUT_OF_STOCK']
 
-// Hardcoded example utensils
-const utensils = ref([
-  { name: 'Spatula', quantity: 10, purchaseDate: '2025-09-01', condition: 'New', category: 'Cooking' },
-  { name: 'Frying Pan', quantity: 5, purchaseDate: '2025-08-20', condition: 'Used', category: 'Cooking' },
-  { name: 'Ladle', quantity: 7, purchaseDate: '2025-07-15', condition: 'New', category: 'Cooking' },
-  { name: 'Serving Spoon', quantity: 12, purchaseDate: '2025-09-10', condition: 'New', category: 'Serving' },
-  { name: 'Tray', quantity: 4, purchaseDate: '2025-09-12', condition: 'Used', category: 'Serving' },
-  { name: 'Baking Tray', quantity: 3, purchaseDate: '2025-08-01', condition: 'New', category: 'Baking' },
-  { name: 'Rolling Pin', quantity: 2, purchaseDate: '2025-07-22', condition: 'Used', category: 'Baking' },
-  { name: 'Knife', quantity: 15, purchaseDate: '2025-10-01', condition: 'New', category: 'Cutlery' },
-  { name: 'Fork', quantity: 20, purchaseDate: '2025-09-15', condition: 'New', category: 'Cutlery' },
-  { name: 'Storage Box', quantity: 8, purchaseDate: '2025-06-10', condition: 'Used', category: 'Storage' },
-  { name: 'Plastic Container', quantity: 10, purchaseDate: '2025-05-20', condition: 'New', category: 'Storage' }
-])
+const utensilCategories = computed(() => inventoryStore.utensilCategoryOptions)
+const selectedCategory = ref('')
+const isSubmitting = ref(false)
 
-// For the new utensil form
 const newUtensil = ref({
-  name: '',
-  quantity: null,
-  purchaseDate: '',
-  condition: '',
-  category: ''
+  itemName: '',
+  categoryId: '',
+  quantityInStock: null,
+  unitCost: null,
+  shelfLifeDays: null,
+  expirationDate: '',
+  status: 'AVAILABLE'
 })
 
-// Add utensil function
-function addUtensil() {
-  if (
-    !newUtensil.value.name ||
-    !newUtensil.value.quantity ||
-    !newUtensil.value.purchaseDate ||
-    !newUtensil.value.condition ||
-    !newUtensil.value.category
-  ) {
-    alert('Please fill all fields')
-    return
-  }
+watch(
+  utensilCategories,
+  categories => {
+    if (!selectedCategory.value && categories.length) {
+      selectedCategory.value = categories[0].categoryId
+      newUtensil.value.categoryId = categories[0].categoryId
+    }
+  },
+  { immediate: true }
+)
 
-  utensils.value.push({ ...newUtensil.value })
-  newUtensil.value = { name: '', quantity: null, purchaseDate: '', condition: '', category: '' }
+const filteredUtensils = computed(() =>
+  inventoryStore.utensils.filter(item => item.categoryId === selectedCategory.value)
+)
+
+const addUtensil = async () => {
+  if (isSubmitting.value) return
+
+  try {
+    isSubmitting.value = true
+    await inventoryStore.createItem({ ...newUtensil.value })
+    newUtensil.value = {
+      itemName: '',
+      categoryId: selectedCategory.value,
+      quantityInStock: null,
+      unitCost: null,
+      shelfLifeDays: null,
+      expirationDate: '',
+      status: 'AVAILABLE'
+    }
+  } catch (error) {
+    alert(error.message ?? 'Unable to add utensil right now.')
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
-// Filter by selected tab
-const filteredUtensils = computed(() =>
-  utensils.value.filter(item => item.category === selectedCategory.value)
-)
+onMounted(() => {
+  if (!inventoryStore.categories.length) {
+    inventoryStore.fetchCategories().catch(error => console.error(error))
+  }
+  if (!inventoryStore.items.length) {
+    inventoryStore.fetchItems().catch(error => console.error(error))
+  }
+  if (!inventoryStore.summary) {
+    inventoryStore.fetchSummary().catch(error => console.error(error))
+  }
+})
 </script>
 
 <style scoped>
@@ -159,7 +178,7 @@ const filteredUtensils = computed(() =>
   background-color: #8B2E1D;
 }
 
-/* ✅ Form Styles */
+/* Form Styles */
 .add-form {
   display: flex;
   flex-wrap: wrap;
@@ -188,7 +207,12 @@ const filteredUtensils = computed(() =>
   transition: background-color 0.3s;
 }
 
-.add-form button:hover {
+.add-form button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.add-form button:hover:not(:disabled) {
   background-color: #8B2E1D;
 }
 
@@ -203,10 +227,16 @@ const filteredUtensils = computed(() =>
   overflow: hidden;
 }
 
+.status-message {
+  text-align: center;
+  color: #8B2E1D;
+  font-weight: 600;
+}
+
 table {
   width: 100%;
+  min-width: 640px;
   border-collapse: collapse;
-  table-layout: fixed;
 }
 
 th, td {
@@ -224,26 +254,5 @@ th {
 td {
   color: #3F2E2E;
   font-weight: 500;
-}
-
-/* Equal width columns */
-th:nth-child(1),
-td:nth-child(1) {
-  width: 25%;
-}
-
-th:nth-child(2),
-td:nth-child(2) {
-  width: 15%;
-}
-
-th:nth-child(3),
-td:nth-child(3) {
-  width: 30%;
-}
-
-th:nth-child(4),
-td:nth-child(4) {
-  width: 30%;
 }
 </style>

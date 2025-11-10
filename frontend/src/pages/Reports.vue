@@ -2,8 +2,7 @@
   <main class="reports-container">
     <h2 class="page-title">Inventory Reports</h2>
 
-    <!-- Summary Cards -->
-    <div class="cards">
+    <div class="cards" v-if="!loadingSummary">
       <div class="card">
         <h3>Total Materials</h3>
         <p>{{ totalMaterials }}</p>
@@ -21,10 +20,11 @@
         <p>{{ expiringSoon.length }}</p>
       </div>
     </div>
+    <div v-else class="status-message">Loading report data...</div>
 
     <!-- Low Stock Table -->
     <div class="table-container" v-if="lowStock.length">
-      <h3>Low Stock Items (qty ≤ 10)</h3>
+      <h3>Low Stock Items (qty <= 10)</h3>
       <table>
         <thead>
           <tr>
@@ -34,10 +34,10 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in lowStock" :key="item.name">
-            <td>{{ item.name }}</td>
-            <td>{{ item.quantity }}</td>
-            <td>{{ item.group }}</td>
+          <tr v-for="item in lowStock" :key="item.itemId">
+            <td>{{ item.itemName }}</td>
+            <td>{{ item.quantityInStock }}</td>
+            <td>{{ item.categoryName }}</td>
           </tr>
         </tbody>
       </table>
@@ -55,10 +55,10 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in expiringSoon" :key="item.name">
-            <td>{{ item.name }}</td>
-            <td>{{ item.quantity }}</td>
-            <td>{{ item.expiration }}</td>
+          <tr v-for="item in expiringSoon" :key="item.itemId">
+            <td>{{ item.itemName }}</td>
+            <td>{{ item.quantityInStock }}</td>
+            <td>{{ item.expirationDate }}</td>
           </tr>
         </tbody>
       </table>
@@ -67,42 +67,26 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { computed, onMounted } from 'vue'
 
-// Hardcoded materials (same as Materials.vue)
-const materials = ref([
-  { name: 'Apple', quantity: 50, startDate: '2025-10-15', expiration: '2025-10-25', group: 'Fruits' },
-  { name: 'Banana', quantity: 30, startDate: '2025-10-16', expiration: '2025-10-22', group: 'Fruits' },
-  { name: 'Carrot', quantity: 40, startDate: '2025-10-14', expiration: '2025-10-30', group: 'Vegetables' },
-  { name: 'Spinach', quantity: 25, startDate: '2025-10-15', expiration: '2025-10-24', group: 'Vegetables' },
-  { name: 'Rice', quantity: 100, startDate: '2025-09-01', expiration: '2026-01-15', group: 'Grains' },
-  { name: 'Bread', quantity: 20, startDate: '2025-10-18', expiration: '2025-10-20', group: 'Grains' },
-  { name: 'Chicken', quantity: 15, startDate: '2025-10-17', expiration: '2025-10-21', group: 'Protein' },
-  { name: 'Beef', quantity: 10, startDate: '2025-10-16', expiration: '2025-10-23', group: 'Protein' },
-  { name: 'Milk', quantity: 30, startDate: '2025-10-14', expiration: '2025-10-18', group: 'Dairy' },
-  { name: 'Cheese', quantity: 25, startDate: '2025-10-10', expiration: '2025-11-05', group: 'Dairy' },
-  { name: 'Cola', quantity: 60, startDate: '2025-10-01', expiration: '2026-01-01', group: 'Drinks' },
-  { name: 'Orange Juice', quantity: 35, startDate: '2025-10-03', expiration: '2025-11-01', group: 'Drinks' },
-  { name: 'Water Bottle', quantity: 80, startDate: '2025-10-05', expiration: '2027-10-05', group: 'Drinks' }
-])
+import { useInventoryStore } from '../stores/inventoryStore'
 
-// Summary calculations
-const totalMaterials = computed(() => materials.value.length)
-const totalQuantity = computed(() => materials.value.reduce((sum, item) => sum + item.quantity, 0))
+const inventoryStore = useInventoryStore()
 
-// Low stock: quantity ≤ 10
-const lowStock = computed(() => materials.value.filter(item => item.quantity <= 10))
-
-// Expiring soon: next 7 days
-const expiringSoon = computed(() => {
-  const today = new Date()
-  const in7Days = new Date()
-  in7Days.setDate(today.getDate() + 7)
-  return materials.value.filter(item => {
-    const exp = new Date(item.expiration)
-    return exp >= today && exp <= in7Days
-  })
+onMounted(() => {
+  if (!inventoryStore.items.length) {
+    inventoryStore.fetchItems().catch(error => console.error(error))
+  }
+  if (!inventoryStore.summary) {
+    inventoryStore.fetchSummary().catch(error => console.error(error))
+  }
 })
+
+const loadingSummary = computed(() => inventoryStore.loading.summary)
+const totalMaterials = computed(() => inventoryStore.totalMaterialsCount)
+const totalQuantity = computed(() => inventoryStore.totalQuantity)
+const lowStock = computed(() => inventoryStore.lowStockMaterials)
+const expiringSoon = computed(() => inventoryStore.expiringSoonMaterials)
 </script>
 
 <style scoped>
@@ -118,6 +102,13 @@ const expiringSoon = computed(() => {
   font-weight: 700;
   text-align: center;
   margin-bottom: 2rem;
+}
+
+.status-message {
+  text-align: center;
+  color: #8B2E1D;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
 }
 
 .cards {

@@ -1,12 +1,11 @@
 <template> 
   <main class="dashboard-container">
-    <!-- Metrics Section -->
     <div class="metrics-section">
       <h2 class="metrics-title">Material Usage Breakdown</h2>
 
       <div class="cards-container">
         <div class="card">
-          <div class="icon">🥩</div>
+          <div class="icon">??</div>
           <div class="info">
             <h3>Total Materials</h3>
             <p>{{ totalMaterials }}</p>
@@ -14,16 +13,15 @@
         </div>
 
         <div class="card">
-          <div class="icon">🍴</div>
+          <div class="icon">??</div>
           <div class="info">
             <h3>Utensils in Use</h3>
             <p>{{ utensilsInUse }}</p>
           </div>
         </div>
 
-        <!-- Weekly Cost Card -->
         <div class="card">
-          <div class="icon">💰</div>
+          <div class="icon">??</div>
           <div class="info">
             <h3>Weekly Cost ($)</h3>
             <p>{{ weeklyCost }}</p>
@@ -31,92 +29,91 @@
         </div>
 
         <div class="card">
-          <div class="icon">⚠️</div>
+          <div class="icon">??</div>
           <div class="info">
             <h3>Low Stock Items</h3>
-            <p>{{ lowStockItems.join(', ') }}</p>
+            <p>{{ lowStockItems.join(', ') || 'None' }}</p>
           </div>
         </div>
 
         <div class="card">
-          <div class="icon">⏳</div>
+          <div class="icon">?</div>
           <div class="info">
             <h3>Expiring Soon</h3>
-            <p>{{ expiringSoon.join(', ') }}</p>
+            <p>{{ expiringSoon.join(', ') || 'All good' }}</p>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Pie Chart -->
     <div class="chart-container">
       <h2>Inventory Distribution</h2>
       <PieChart :chart-data="pieData" />
     </div>
-
   </main>
 </template>
 
 <script setup>
+import { computed, onMounted } from 'vue'
+
 import PieChart from '../components/PieChart.vue'
-import { ref, computed } from 'vue'
+import { useInventoryStore } from '../stores/inventoryStore'
 
-// Example hardcoded data
-const totalMaterials = ref(520)
-const utensilsInUse = ref(96)
+const inventoryStore = useInventoryStore()
 
-// Pie chart example data
-const pieData = ref({
+onMounted(() => {
+  if (!inventoryStore.items.length) {
+    inventoryStore.fetchItems().catch(error => console.error(error))
+  }
+  if (!inventoryStore.categories.length) {
+    inventoryStore.fetchCategories().catch(error => console.error(error))
+  }
+  if (!inventoryStore.summary) {
+    inventoryStore.fetchSummary().catch(error => console.error(error))
+  }
+})
+
+const totalMaterials = computed(() => inventoryStore.totalMaterialsCount)
+const utensilsInUse = computed(() => inventoryStore.utensilsInUse)
+const weeklyCost = computed(() => inventoryStore.weeklyCostTotal.toFixed(2))
+const lowStockItems = computed(() => inventoryStore.lowStockMaterials.map(item => item.itemName))
+const expiringSoon = computed(() => inventoryStore.expiringSoonMaterials.map(item => item.itemName))
+
+const pieData = computed(() => {
+  if (!inventoryStore.materials.length) {
+    return fallbackChartData
+  }
+
+  const counts = inventoryStore.materials.reduce((acc, material) => {
+    const key = material.categoryName ?? 'Other'
+    acc[key] = (acc[key] ?? 0) + Number(material.quantityInStock ?? 0)
+    return acc
+  }, {})
+
+  return {
+    labels: Object.keys(counts),
+    datasets: [
+      {
+        label: 'Inventory Distribution',
+        data: Object.values(counts),
+        backgroundColor: chartColors
+      }
+    ]
+  }
+})
+
+const chartColors = ['#8B2E1D', '#D97706', '#FBBF24', '#FEEBC8', '#FDBA74', '#C2410C']
+const fallbackChartData = {
   labels: ['Meat', 'Vegetables', 'Utensils', 'Other'],
   datasets: [
     {
       label: 'Inventory Distribution',
-      data: [40, 30, 20, 10], 
-      backgroundColor: ['#8B2E1D', '#D97706', '#FBBF24', '#FEEBC8']
+      data: [40, 30, 20, 10],
+      backgroundColor: chartColors
     }
   ]
-})
-
-// Example materials array
-const materials = ref([
-  { name: 'Apple', quantity: 50, startDate: '2025-10-15', expiration: '2025-10-25', group: 'Fruits', price: 2 },
-  { name: 'Banana', quantity: 30, startDate: '2025-10-16', expiration: '2025-10-22', group: 'Fruits', price: 1 },
-  { name: 'Carrot', quantity: 40, startDate: '2025-10-14', expiration: '2025-10-30', group: 'Vegetables', price: 1 },
-  { name: 'Spinach', quantity: 25, startDate: '2025-10-15', expiration: '2025-10-24', group: 'Vegetables', price: 1.5 },
-  { name: 'Rice', quantity: 100, startDate: '2025-09-01', expiration: '2026-01-15', group: 'Grains', price: 0.5 },
-  { name: 'Bread', quantity: 20, startDate: '2025-10-18', expiration: '2025-10-20', group: 'Grains', price: 1 },
-  { name: 'Chicken', quantity: 15, startDate: '2025-10-17', expiration: '2025-10-21', group: 'Protein', price: 5 },
-  { name: 'Beef', quantity: 10, startDate: '2025-10-16', expiration: '2025-10-23', group: 'Protein', price: 7 },
-  { name: 'Milk', quantity: 30, startDate: '2025-10-14', expiration: '2025-10-18', group: 'Dairy', price: 3 },
-  { name: 'Cheese', quantity: 25, startDate: '2025-10-10', expiration: '2025-11-05', group: 'Dairy', price: 4 },
-  { name: 'Cola', quantity: 60, startDate: '2025-10-01', expiration: '2026-01-01', group: 'Drinks', price: 1 },
-  { name: 'Orange Juice', quantity: 35, startDate: '2025-10-03', expiration: '2025-11-01', group: 'Drinks', price: 2 },
-  { name: 'Water Bottle', quantity: 80, startDate: '2025-10-05', expiration: '2027-10-05', group: 'Drinks', price: 1 }
-])
-
-// Computed: Low stock items (qty <= 10)
-const lowStockItems = computed(() =>
-  materials.value.filter(item => item.quantity <= 10).map(item => item.name)
-)
-
-// Computed: Expiring soon (expiration within 7 days)
-const expiringSoon = computed(() => {
-  const today = new Date()
-  return materials.value
-    .filter(item => {
-      const expDate = new Date(item.expiration)
-      const diffDays = (expDate - today) / (1000 * 60 * 60 * 24)
-      return diffDays >= 0 && diffDays <= 7
-    })
-    .map(item => item.name)
-})
-
-// Computed: Weekly Cost ($) based on materials quantity & price
-const weeklyCost = computed(() => {
-  return materials.value.reduce((total, item) => total + (item.quantity * item.price), 0)
-})
+}
 </script>
-
 
 <style scoped>
 .dashboard-container {
@@ -125,7 +122,6 @@ const weeklyCost = computed(() => {
   min-height: 100vh;
 }
 
-/* Section Title above metrics cards */
 .metrics-title {
   font-size: 1.6rem;
   color: #8B2E1D;
@@ -134,12 +130,11 @@ const weeklyCost = computed(() => {
   margin-bottom: 1.5rem;
 }
 
-/* Cards Layout */
 .cards-container {
   display: flex;
   gap: 1.5rem;
   flex-wrap: wrap;
-  justify-content: center; /* center the cards */
+  justify-content: center;
 }
 
 .card {
@@ -175,7 +170,6 @@ const weeklyCost = computed(() => {
   color: #3F2E2E;
 }
 
-/* Chart Container */
 .chart-container {
   background-color: #fff;
   padding: 2rem 2rem;
