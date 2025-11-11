@@ -19,6 +19,14 @@
         <h3>Expiring Soon</h3>
         <p>{{ expiringSoon.length }}</p>
       </div>
+      <div class="card secondary-card">
+        <h3>Cutlery Low Stock</h3>
+        <p>{{ cutleryLowStock.length }}</p>
+      </div>
+      <div class="card secondary-card">
+        <h3>Serving Low Stock</h3>
+        <p>{{ servingLowStock.length }}</p>
+      </div>
     </div>
     <div v-else class="status-message">Loading report data...</div>
 
@@ -119,6 +127,8 @@ const totalMaterials = computed(() => inventoryStore.totalMaterialsCount)
 const totalQuantity = computed(() => inventoryStore.totalQuantity)
 const lowStock = computed(() => inventoryStore.lowStockMaterials)
 const expiringSoon = computed(() => inventoryStore.expiringSoonMaterials)
+const cutleryLowStock = computed(() => inventoryStore.lowStockCutlery)
+const servingLowStock = computed(() => inventoryStore.lowStockServing)
 const deletedItems = computed(() => inventoryStore.deletedItems)
 
 const handleRestore = async item => {
@@ -173,6 +183,10 @@ const formatDate = dateString => {
   text-align: center;
   font-weight: 600;
   min-width: 150px;
+}
+
+.secondary-card {
+  background-color: #8B2E1D;
 }
 
 .table-container {

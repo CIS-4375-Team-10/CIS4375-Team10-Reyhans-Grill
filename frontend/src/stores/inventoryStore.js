@@ -90,6 +90,12 @@ export const useInventoryStore = defineStore('inventory', {
     },
     expiringSoonMaterials() {
       return this.expiringSoonItems
+    },
+    lowStockCutlery() {
+      return this.summary?.lowStockCutlery ?? []
+    },
+    lowStockServing() {
+      return this.summary?.lowStockServing ?? []
     }
   },
   actions: {

@@ -30,6 +30,30 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
     [threshold]
   )
 
+  const [lowStockCutlery] = await pool.query(
+    `SELECT i.Item_ID AS itemId,
+            i.Item_Name AS itemName,
+            i.Quantity_in_Stock AS quantityInStock
+       FROM Item i
+      WHERE i.Is_Deleted = 0
+        AND i.Category_ID = 'CAT_CUT'
+        AND i.Quantity_in_Stock <= ?
+      ORDER BY i.Quantity_in_Stock ASC, i.Item_Name ASC`,
+    [threshold]
+  )
+
+  const [lowStockServing] = await pool.query(
+    `SELECT i.Item_ID AS itemId,
+            i.Item_Name AS itemName,
+            i.Quantity_in_Stock AS quantityInStock
+       FROM Item i
+      WHERE i.Is_Deleted = 0
+        AND i.Category_ID = 'CAT_SERVE'
+        AND i.Quantity_in_Stock <= ?
+      ORDER BY i.Quantity_in_Stock ASC, i.Item_Name ASC`,
+    [threshold]
+  )
+
   const [expiringRows] = await pool.query(
     `SELECT i.Item_ID AS itemId,
             i.Item_Name AS itemName,
@@ -53,9 +77,10 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
   const [[utensilStats]] = await pool.query(utensilQuery, utensilCategoryIds)
 
   const [[spendStats]] = await pool.query(
-    `SELECT IFNULL(SUM(Total_Cost), 0) AS recentSpend
-       FROM Purchase
-      WHERE Purchase_Date >= DATE_SUB(CURDATE(), INTERVAL 28 DAY)`
+    `SELECT IFNULL(SUM(Unit_Cost * Quantity_in_Stock), 0) AS recentSpend
+       FROM Item
+      WHERE Is_Deleted = 0
+        AND Created_At >= DATE_SUB(NOW(), INTERVAL 7 DAY)`
   )
 
   res.json({
@@ -63,6 +88,8 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
     totalQuantity: Number(itemStats.totalQuantity) || 0,
     lowStock: lowStockRows,
     expiringSoon: expiringRows,
+    lowStockCutlery,
+    lowStockServing,
     utensilsInUse: Number(utensilStats.utensilsInUse) || 0,
     recentSpend: Number(spendStats.recentSpend) || 0
   })
