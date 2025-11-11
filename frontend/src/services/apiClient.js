@@ -48,6 +48,8 @@ export const apiClient = {
   createItem: payload => request('/items', { method: 'POST', body: payload }),
   updateItem: (id, payload) => request(`/items/${id}`, { method: 'PUT', body: payload }),
   deleteItem: id => request(`/items/${id}`, { method: 'DELETE' }),
+  getDeletedItems: () => request('/items/deleted'),
+  restoreItem: id => request(`/items/${id}/restore`, { method: 'PATCH' }),
 
   // Purchases
   getPurchases: () => request('/purchases'),

@@ -12,7 +12,8 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
   const [[itemStats]] = await pool.query(
     `SELECT COUNT(*) AS totalItems,
             IFNULL(SUM(Quantity_in_Stock), 0) AS totalQuantity
-       FROM Item`
+       FROM Item
+      WHERE Is_Deleted = 0`
   )
 
   const [lowStockRows] = await pool.query(
@@ -22,7 +23,8 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
             c.Category_Name AS categoryName
        FROM Item i
        JOIN Category c ON c.Category_ID = i.Category_ID
-      WHERE i.Quantity_in_Stock <= ?
+      WHERE i.Is_Deleted = 0
+        AND i.Quantity_in_Stock <= ?
       ORDER BY i.Quantity_in_Stock ASC, i.Item_Name ASC
       LIMIT 10`,
     [threshold]
@@ -34,7 +36,8 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
             i.Quantity_in_Stock AS quantityInStock,
             i.Expiration_Date AS expirationDate
        FROM Item i
-      WHERE i.Expiration_Date IS NOT NULL
+      WHERE i.Is_Deleted = 0
+        AND i.Expiration_Date IS NOT NULL
         AND i.Expiration_Date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)
       ORDER BY i.Expiration_Date ASC`,
     [horizonDays]
@@ -44,7 +47,8 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
   const utensilQuery = `
     SELECT IFNULL(SUM(Quantity_in_Stock), 0) AS utensilsInUse
       FROM Item
-     WHERE Category_ID IN (${utensilPlaceholders})
+     WHERE Is_Deleted = 0
+       AND Category_ID IN (${utensilPlaceholders})
   `
   const [[utensilStats]] = await pool.query(utensilQuery, utensilCategoryIds)
 

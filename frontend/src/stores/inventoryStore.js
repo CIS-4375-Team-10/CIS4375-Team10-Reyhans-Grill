@@ -31,13 +31,15 @@ export const useInventoryStore = defineStore('inventory', {
     categories: [],
     users: [],
     summary: null,
+    deletedItems: [],
     loading: {
       items: false,
       purchases: false,
       usage: false,
       reports: false,
       categories: false,
-      summary: false
+      summary: false,
+      deletedItems: false
     },
     lastError: null,
     initialized: false
@@ -136,6 +138,55 @@ export const useInventoryStore = defineStore('inventory', {
         throw error
       }
     },
+    async updateItem(itemId, payload) {
+      try {
+        const body = {
+          ...payload,
+          parLevel: payload.parLevel ?? 0,
+          reorderPoint: payload.reorderPoint ?? 0
+        }
+        const updated = await apiClient.updateItem(itemId, body)
+        this.items = this.items.map(item => (item.itemId === itemId ? updated : item))
+        await this.fetchSummary()
+        return updated
+      } catch (error) {
+        this.setError(error.message ?? 'Unable to update item')
+        throw error
+      }
+    },
+    async deleteItem(itemId) {
+      try {
+        await apiClient.deleteItem(itemId)
+        this.items = this.items.filter(item => item.itemId !== itemId)
+        await this.fetchSummary()
+        await this.fetchDeletedItems()
+      } catch (error) {
+        this.setError(error.message ?? 'Unable to delete item')
+        throw error
+      }
+    },
+    async fetchDeletedItems() {
+      this.loading.deletedItems = true
+      try {
+        this.deletedItems = await apiClient.getDeletedItems()
+      } catch (error) {
+        this.setError(error.message ?? 'Unable to load deleted items')
+        throw error
+      } finally {
+        this.loading.deletedItems = false
+      }
+    },
+    async restoreItem(itemId) {
+      try {
+        const restored = await apiClient.restoreItem(itemId)
+        this.deletedItems = this.deletedItems.filter(item => item.itemId !== itemId)
+        this.items.push(restored)
+        await this.fetchSummary()
+      } catch (error) {
+        this.setError(error.message ?? 'Unable to restore item')
+        throw error
+      }
+    },
     async fetchPurchases() {
       this.loading.purchases = true
       try {
@@ -202,7 +253,8 @@ export const useInventoryStore = defineStore('inventory', {
         this.fetchPurchases(),
         this.fetchReports(),
         this.fetchSummary(),
-        this.fetchUsers()
+        this.fetchUsers(),
+        this.fetchDeletedItems()
       ])
 
       this.initialized = true

@@ -59,6 +59,7 @@ export const listItems = asyncHandler(async (req, res) => {
             i.Reorder_Point AS reorderPoint
        FROM Item i
        JOIN Category c ON c.Category_ID = i.Category_ID
+      WHERE i.Is_Deleted = 0
       ORDER BY i.Item_Name ASC`
   )
   res.json(rows)
@@ -102,7 +103,7 @@ export const createItem = asyncHandler(async (req, res) => {
             i.Reorder_Point AS reorderPoint
        FROM Item i
        JOIN Category c ON c.Category_ID = i.Category_ID
-      WHERE i.Item_ID = ?`,
+      WHERE i.Item_ID = ? AND i.Is_Deleted = 0`,
     [itemId]
   )
 
@@ -141,7 +142,10 @@ export const updateItem = asyncHandler(async (req, res) => {
   values.push(id)
 
   const [result] = await pool.query(
-    `UPDATE Item SET ${fields.join(', ')} WHERE Item_ID = ?`,
+    `UPDATE Item
+        SET ${fields.join(', ')}
+      WHERE Item_ID = ?
+        AND Is_Deleted = 0`,
     values
   )
 
@@ -164,7 +168,7 @@ export const updateItem = asyncHandler(async (req, res) => {
             i.Reorder_Point AS reorderPoint
        FROM Item i
        JOIN Category c ON c.Category_ID = i.Category_ID
-      WHERE i.Item_ID = ?`,
+      WHERE i.Item_ID = ? AND i.Is_Deleted = 0`,
     [id]
   )
 
@@ -173,9 +177,86 @@ export const updateItem = asyncHandler(async (req, res) => {
 
 export const deleteItem = asyncHandler(async (req, res) => {
   const { id } = paramsSchema.parse(req.params)
-  const [result] = await pool.query(`DELETE FROM Item WHERE Item_ID = ?`, [id])
+  const [result] = await pool.query(
+    `UPDATE Item
+        SET Is_Deleted = 1,
+            Deleted_At = NOW(),
+            Updated_At = NOW()
+      WHERE Item_ID = ?
+        AND Is_Deleted = 0`,
+    [id]
+  )
   if (result.affectedRows === 0) {
     throw new HttpError(404, 'Item not found')
   }
   res.status(204).send()
+})
+
+export const listDeletedItems = asyncHandler(async (req, res) => {
+  await pool.query(
+    `DELETE FROM Item
+      WHERE Is_Deleted = 1
+        AND Deleted_At IS NOT NULL
+        AND Deleted_At < DATE_SUB(NOW(), INTERVAL 7 DAY)`
+  )
+
+  const [rows] = await pool.query(
+    `SELECT i.Item_ID AS itemId,
+            i.Item_Name AS itemName,
+            i.Category_ID AS categoryId,
+            c.Category_Name AS categoryName,
+            i.Quantity_in_Stock AS quantityInStock,
+            i.Unit_Cost AS unitCost,
+            i.Shelf_Life_Days AS shelfLifeDays,
+            i.Expiration_Date AS expirationDate,
+            i.Status AS status,
+            i.Item_Type AS itemType,
+            i.Par_Level AS parLevel,
+            i.Reorder_Point AS reorderPoint,
+            i.Deleted_At AS deletedAt
+       FROM Item i
+       JOIN Category c ON c.Category_ID = i.Category_ID
+      WHERE i.Is_Deleted = 1
+      ORDER BY i.Deleted_At DESC`
+  )
+
+  res.json(rows)
+})
+
+export const restoreItem = asyncHandler(async (req, res) => {
+  const { id } = paramsSchema.parse(req.params)
+  const [result] = await pool.query(
+    `UPDATE Item
+        SET Is_Deleted = 0,
+            Deleted_At = NULL,
+            Updated_At = NOW()
+      WHERE Item_ID = ?
+        AND Is_Deleted = 1`,
+    [id]
+  )
+
+  if (result.affectedRows === 0) {
+    throw new HttpError(404, 'Deleted item not found')
+  }
+
+  const [rows] = await pool.query(
+    `SELECT i.Item_ID AS itemId,
+            i.Item_Name AS itemName,
+            i.Category_ID AS categoryId,
+            c.Category_Name AS categoryName,
+            i.Quantity_in_Stock AS quantityInStock,
+            i.Unit_Cost AS unitCost,
+            i.Shelf_Life_Days AS shelfLifeDays,
+            i.Expiration_Date AS expirationDate,
+            i.Status AS status,
+            i.Item_Type AS itemType,
+            i.Par_Level AS parLevel,
+            i.Reorder_Point AS reorderPoint
+       FROM Item i
+       JOIN Category c ON c.Category_ID = i.Category_ID
+      WHERE i.Item_ID = ?`,
+    [id]
+  )
+
+  res.json(rows[0])
 })

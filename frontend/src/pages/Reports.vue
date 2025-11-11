@@ -63,6 +63,35 @@
         </tbody>
       </table>
     </div>
+
+    <!-- Recently Deleted Table -->
+    <div class="table-container" v-if="deletedItems.length">
+      <h3>Recently Deleted Items (auto removed after 7 days)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Qty</th>
+            <th>Category</th>
+            <th>Deleted On</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in deletedItems" :key="item.itemId">
+            <td>{{ item.itemName }}</td>
+            <td>{{ item.quantityInStock }}</td>
+            <td>{{ item.categoryName }}</td>
+            <td>{{ formatDate(item.deletedAt) }}</td>
+            <td>
+              <button class="restore-button" @click="handleRestore(item)">
+                Undo Delete
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </main>
 </template>
 
@@ -80,6 +109,9 @@ onMounted(() => {
   if (!inventoryStore.summary) {
     inventoryStore.fetchSummary().catch(error => console.error(error))
   }
+  if (!inventoryStore.deletedItems.length) {
+    inventoryStore.fetchDeletedItems().catch(error => console.error(error))
+  }
 })
 
 const loadingSummary = computed(() => inventoryStore.loading.summary)
@@ -87,6 +119,20 @@ const totalMaterials = computed(() => inventoryStore.totalMaterialsCount)
 const totalQuantity = computed(() => inventoryStore.totalQuantity)
 const lowStock = computed(() => inventoryStore.lowStockMaterials)
 const expiringSoon = computed(() => inventoryStore.expiringSoonMaterials)
+const deletedItems = computed(() => inventoryStore.deletedItems)
+
+const handleRestore = async item => {
+  try {
+    await inventoryStore.restoreItem(item.itemId)
+  } catch (error) {
+    alert(error.message ?? 'Unable to restore item.')
+  }
+}
+
+const formatDate = dateString => {
+  if (!dateString) return '-'
+  return dateString.slice(0, 10)
+}
 </script>
 
 <style scoped>
@@ -159,5 +205,19 @@ th {
 td {
   color: #3F2E2E;
   font-weight: 500;
+}
+
+.restore-button {
+  background: #2563eb;
+  border: none;
+  color: #fff;
+  padding: 0.35rem 0.85rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.restore-button:hover {
+  background: #1d4ed8;
 }
 </style>
