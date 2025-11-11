@@ -44,4 +44,3 @@ npm run lint
 ```
 
 ### Testing
-Ryker testing add for branch
