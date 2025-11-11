@@ -1,0 +1,2 @@
+USE reyhansgrilldb;
+ALTER TABLE Item ADD COLUMN Deleted_At TIMESTAMP NULL DEFAULT NULL AFTER Is_Deleted;

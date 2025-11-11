@@ -47,12 +47,16 @@ export const useInventoryStore = defineStore('inventory', {
   getters: {
     materials(state) {
       return state.items.filter(item =>
-        item.itemType ? item.itemType === 'MATERIAL' : materialCategoryNames.has(item.categoryName)
+        item.itemType
+          ? item.itemType.toUpperCase() === 'MATERIAL'
+          : materialCategoryNames.has(item.categoryName)
       )
     },
     utensils(state) {
       return state.items.filter(item =>
-        item.itemType ? item.itemType === 'UTENSIL' : utensilCategoryNames.has(item.categoryName)
+        item.itemType
+          ? item.itemType.toUpperCase() === 'UTENSIL'
+          : utensilCategoryNames.has(item.categoryName)
       )
     },
     materialCategoryOptions(state) {
@@ -120,14 +124,12 @@ export const useInventoryStore = defineStore('inventory', {
     async createItem(payload) {
       try {
         const body = {
-          status: 'AVAILABLE',
-          itemType: 'OTHER',
+          ...payload,
+          status: payload.status ?? 'AVAILABLE',
+          itemType: payload.itemType ?? 'OTHER',
           parLevel: payload.parLevel ?? 0,
-          reorderPoint: payload.reorderPoint ?? 0,
-          ...payload
+          reorderPoint: payload.reorderPoint ?? 0
         }
-        if (!body.status) body.status = 'AVAILABLE'
-        if (!body.itemType) body.itemType = 'OTHER'
 
         const created = await apiClient.createItem(body)
         this.items.push(created)

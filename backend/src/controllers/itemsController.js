@@ -31,7 +31,7 @@ const itemSchema = z.object({
   categoryId: z.string().min(1),
   quantityInStock: z.coerce.number().int().nonnegative(),
   unitCost: z.coerce.number().nonnegative(),
-  shelfLifeDays: z.coerce.number().int().nonnegative(),
+  shelfLifeDays: z.coerce.number().int().nonnegative().optional(),
   expirationDate: expirationDateSchema,
   status: z.enum(statusEnum).default('AVAILABLE'),
   itemType: z.enum(itemTypes).default('MATERIAL'),

@@ -24,7 +24,12 @@
       </select>
       <input v-model.number="form.quantityInStock" type="number" min="0" placeholder="Qty" required />
       <input v-model.number="form.unitCost" type="number" min="0" step="0.01" placeholder="Unit Cost ($)" required />
-      <input v-model.number="form.shelfLifeDays" type="number" min="0" placeholder="Shelf Life (days)" required />
+      <input
+        v-model.number="form.shelfLifeDays"
+        type="number"
+        min="0"
+        placeholder="Shelf Life (days)"
+      />
       <select v-model="form.status">
         <option value="AVAILABLE">Available</option>
         <option value="LOW">Low</option>
@@ -123,7 +128,11 @@ const handleSubmit = async () => {
   if (isSubmitting.value) return
   try {
     isSubmitting.value = true
-    const payload = { ...form.value, itemType: 'UTENSIL' }
+    const payload = {
+      ...form.value,
+      itemType: 'UTENSIL',
+      shelfLifeDays: form.value.shelfLifeDays ?? null
+    }
     if (editingItemId.value) {
       await inventoryStore.updateItem(editingItemId.value, payload)
     } else {
