@@ -108,13 +108,13 @@ const expiringSoon = computed(() => {
 <style scoped>
 .reports-container {
   padding: 2rem;
-  background-color: #FFF7ED;
+  background-color: #f3f7f6;
   min-height: 100vh;
 }
 
 .page-title {
   font-size: 1.8rem;
-  color: #8B2E1D;
+  color: #143029;
   font-weight: 700;
   text-align: center;
   margin-bottom: 2rem;
@@ -129,7 +129,7 @@ const expiringSoon = computed(() => {
 }
 
 .card {
-  background-color: #D97706;
+  background-color: #2f7057;
   color: #fff;
   padding: 1rem 2rem;
   border-radius: 12px;
@@ -160,13 +160,13 @@ th, td {
 }
 
 th {
-  color: #8B2E1D;
+  color: #143029;
   font-weight: 700;
   text-align: left;
 }
 
 td {
-  color: #3F2E2E;
-  font-weight: 500;
+  color: #040303;
+  font-weight: 550;
 }
 </style>
