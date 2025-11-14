@@ -43,13 +43,13 @@ const orders = ref([
 <style scoped>
 .orders-container {
   padding: 2rem;
-  background-color: #FFF7ED;
+  background-color: #f3f7f6;
   min-height: 100vh;
 }
 
 .page-title {
   font-size: 1.8rem;
-  color: #8B2E1D;
+  color:#143029;
   font-weight: 700;
   text-align: center;
   margin-bottom: 2rem;
@@ -77,12 +77,12 @@ th, td {
 }
 
 th {
-  color: #8B2E1D;
+  color: #143029;
   font-weight: 700;
 }
 
 td {
-  color: #3F2E2E;
-  font-weight: 500;
+  color: #000000;
+  font-weight: 550;
 }
 </style>

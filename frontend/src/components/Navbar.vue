@@ -42,7 +42,8 @@ function logout() {
 
 <style scoped>
 nav {
-  background-color: #8B2E1D;
+  background-color:  #1a3f31;
+;
   color: #fff;
   padding: 12px 24px;
   display: flex;
@@ -67,7 +68,7 @@ nav {
 .brand-name {
   font-size: 1.3rem;
   font-weight: bold;
-  color: #FBBF24;
+  color: white;
 }
 
 ul {
@@ -87,17 +88,17 @@ li a {
 }
 
 li a:hover {
-  color: #FBBF24;
+  color: #7dc9a2;
   transform: scale(1.05);
 }
 
 li a.router-link-active {
-  border-bottom: 2px solid #FBBF24;
+  border-bottom: 2px solid #10cba5;
   padding-bottom: 2px;
 }
 
 .logout-btn {
-  background-color: #D97706;
+  background-color: #eca833;
   border: none;
   padding: 6px 12px;
   border-radius: 6px;
@@ -108,8 +109,8 @@ li a.router-link-active {
 }
 
 .logout-btn:hover {
-  background-color: #FBBF24;
-  color: #8B2E1D;
+  background-color: #c87434;
+  color: #150b01;
   transform: scale(1.05);
 }
 </style>
