@@ -57,3 +57,38 @@ export const createReport = asyncHandler(async (req, res) => {
 
   res.status(201).json(rows[0])
 })
+
+const monthlyQuerySchema = z.object({
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),  // YYYY-MM-DD
+  to:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
+})
+
+export const getMonthlyExpenses = asyncHandler(async (req, res) => {
+  const { from, to } = monthlyQuerySchema.parse(req.query)
+
+  // Build WHERE dynamically if range is provided
+  const where = []
+  const params = []
+  if (from) { where.push('expense_date >= ?'); params.push(from) }
+  if (to)   { where.push('expense_date <= ?'); params.push(to) }
+  const whereSQL = where.length ? `WHERE ${where.join(' AND ')}` : ''
+
+  const [rows] = await pool.query(
+    `
+    SELECT DATE_FORMAT(expense_date, '%Y-%m') AS label,
+           ROUND(SUM(amount), 2)              AS value
+    FROM expenses
+    ${whereSQL}
+    GROUP BY label
+    ORDER BY label;
+    `,
+    params
+  )
+
+  res.json({
+    labels: rows.map(r => r.label),
+    datasets: [
+      { label: 'Total Spend', data: rows.map(r => Number(r.value)) }
+    ]
+  })
+})
