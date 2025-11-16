@@ -1,68 +1,110 @@
 <template>
-  <main class="materials-container">
-    <h2 class="page-title">Materials Inventory</h2>
-
-    <div class="tabs">
-      <button
-        v-for="group in materialTabs"
-        :key="group.categoryId"
-        :class="['tab-button', { active: selectedCategory === group.categoryId }]"
-        @click="selectedCategory = group.categoryId"
+  <main class="inventory-container">
+    <h2 class="page-title">{{ currentInventoryType }}S INVENTORY</h2>
+    
+    <!-- Inventory Type Toggle -->
+    <div class="inventory-type-toggle">
+      <button 
+        :class="['type-button', { active: inventoryType === 'MATERIAL' }]"
+        @click="switchInventoryType('MATERIAL')"
       >
-        <span class="tab-icon">{{ group.icon }}</span>
-        {{ group.categoryName }}
+        🥕 MATERIALS
+      </button>
+      <button 
+        :class="['type-button', { active: inventoryType === 'UTENSIL' }]"
+        @click="switchInventoryType('UTENSIL')"
+      >
+        🍳 UTENSILS
       </button>
     </div>
 
+    <!-- Category Tabs -->
+    <div class="tabs">
+      <button 
+        v-for="category in currentTabs" 
+        :key="category.categoryId"
+        :class="['tab-button', { active: selectedCategory === category.categoryId }]"
+        @click="selectedCategory = category.categoryId"
+      >
+        <span class="tab-icon">{{ category.icon }}</span>
+        {{ category.categoryName }}
+      </button>
+    </div>
+
+    <!-- Add/Edit Form -->
     <form class="add-form" @submit.prevent="handleSubmit">
-      <input v-model="form.itemName" placeholder="Material Name" required />
+      <input v-model="form.itemName" :placeholder="`${inventoryType === 'MATERIAL' ? 'Material' : 'Utensil'} Name`" required />
+      
       <select v-model="form.categoryId" required>
         <option disabled value="">Select Category</option>
-        <option v-for="group in materialTabs" :key="group.categoryId" :value="group.categoryId">
-          {{ group.categoryName }}
+        <option v-for="category in currentTabs" :key="category.categoryId" :value="category.categoryId">
+          {{ category.categoryName }}
         </option>
       </select>
+
       <input v-model.number="form.quantityInStock" type="number" min="0" placeholder="Qty" required />
-      <input v-model.number="form.unitCost" type="number" step="0.01" min="0" placeholder="Unit Cost ($)" required />
-      <input v-model.number="form.shelfLifeDays" type="number" min="0" placeholder="Shelf Life (days)" required />
-      <input v-model="form.expirationDate" type="date" />
+      <input v-model.number="form.unitCost" type="number" min="0" step="0.01" placeholder="Unit Cost ($)" required />
+      
+      <input 
+        v-model.number="form.shelfLifeDays" 
+        type="number" 
+        min="0" 
+        :placeholder="inventoryType === 'MATERIAL' ? 'Shelf Life (days) *' : 'Shelf Life (days)'"
+        :required="inventoryType === 'MATERIAL'"
+      />
+      
+      <input 
+        v-if="inventoryType === 'MATERIAL'" 
+        v-model="form.expirationDate" 
+        type="date" 
+      />
+      
       <select v-model="form.status">
         <option value="AVAILABLE">Available</option>
         <option value="LOW">Low</option>
         <option value="OUT_OF_STOCK">Out of Stock</option>
       </select>
+
       <div class="button-group">
         <button type="submit" :disabled="isSubmitting">
-          {{ editingItemId ? (isSubmitting ? 'Updating...' : 'Update Material') : (isSubmitting ? 'Saving...' : 'Add Material') }}
+          {{ editingItemId ? 
+            (isSubmitting ? 'Updating...' : `Update ${inventoryType === 'MATERIAL' ? 'Material' : 'Utensil'}`) : 
+            (isSubmitting ? 'Saving...' : `Add ${inventoryType === 'MATERIAL' ? 'Material' : 'Utensil'}`)
+          }}
         </button>
-        <button v-if="editingItemId" type="button" class="secondary" @click="resetForm">Cancel</button>
+        <button v-if="editingItemId" type="button" class="secondary" @click="resetForm">
+          Cancel
+        </button>
       </div>
     </form>
 
+    <!-- Inventory Table -->
     <div class="table-container">
-      <div v-if="inventoryStore.loading.items" class="status-message">Loading materials...</div>
-      <div v-else-if="!filteredMaterials.length" class="status-message">
-        No materials in this category yet.
+      <div v-if="inventoryStore.loading.items" class="status-message">
+        Loading {{ inventoryType.toLowerCase() }}s...
+      </div>
+      <div v-else-if="!filteredItems.length" class="status-message">
+        No {{ inventoryType.toLowerCase() }}s tracked in this category yet.
       </div>
       <table v-else>
         <thead>
           <tr>
-            <th>Ingredient</th>
+            <th>{{ inventoryType === 'MATERIAL' ? 'Ingredient' : 'Utensil' }}</th>
             <th>Qty</th>
             <th>Unit Cost</th>
             <th>Shelf Life (days)</th>
-            <th>Expiration</th>
+            <th v-if="inventoryType === 'MATERIAL'">Expiration</th>
             <th>Status</th>
             <th class="actions-col">Actions</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in filteredMaterials" :key="item.itemId">
+          <tr v-for="item in filteredItems" :key="item.itemId">
             <td>{{ item.itemName }}</td>
             <td>{{ item.quantityInStock }}</td>
             <td>${{ Number(item.unitCost).toFixed(2) }}</td>
             <td>{{ item.shelfLifeDays }}</td>
-            <td>{{ formatDisplayDate(item.expirationDate) }}</td>
+            <td v-if="inventoryType === 'MATERIAL'">{{ formatDisplayDate(item.expirationDate) }}</td>
             <td>{{ item.status }}</td>
             <td>
               <button class="edit-button" type="button" @click="startEdit(item)">
@@ -81,11 +123,14 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-
 import { useInventoryStore } from '../stores/inventoryStore'
+import { useRoute, useRouter } from 'vue-router'
 
 const inventoryStore = useInventoryStore()
+const route = useRoute()
+const router = useRouter()
 
+// Constants
 const MATERIAL_TABS = [
   { categoryId: 'CAT_FRUITS', label: 'Fruits', icon: '🍎' },
   { categoryId: 'CAT_VEG', label: 'Vegetables', icon: '🥕' },
@@ -95,17 +140,17 @@ const MATERIAL_TABS = [
   { categoryId: 'CAT_DRINK', label: 'Drinks', icon: '🥤' }
 ]
 
-const materialTabs = computed(() =>
-  MATERIAL_TABS.map(tab => {
-    const match = inventoryStore.materialCategoryOptions.find(cat => cat.categoryId === tab.categoryId)
-    return {
-      ...tab,
-      categoryName: match?.categoryName ?? tab.label
-    }
-  })
-)
+const UTENSIL_TABS = [
+  { categoryId: 'CAT_COOK', label: 'Cooking', icon: '🍳' },
+  { categoryId: 'CAT_SERVE', label: 'Serving', icon: '🍽️' },
+  { categoryId: 'CAT_BAKE', label: 'Baking', icon: '🧁' },
+  { categoryId: 'CAT_CUT', label: 'Cutlery', icon: '🔪' },
+  { categoryId: 'CAT_STORE', label: 'Storage', icon: '🧺' }
+]
 
-const selectedCategory = ref(materialTabs.value[0]?.categoryId ?? '')
+// Reactive state
+const inventoryType = ref('MATERIAL')
+const selectedCategory = ref('')
 const isSubmitting = ref(false)
 const editingItemId = ref(null)
 
@@ -120,18 +165,59 @@ const form = ref({
   itemType: 'MATERIAL'
 })
 
-const filteredMaterials = computed(() =>
-  inventoryStore.materials.filter(item => item.categoryId === selectedCategory.value)
-)
+// Computed properties
+const currentInventoryType = computed(() => inventoryType.value)
+const currentTabs = computed(() => {
+  const tabs = inventoryType.value === 'MATERIAL' ? MATERIAL_TABS : UTENSIL_TABS
+  const categoryOptions = inventoryType.value === 'MATERIAL' 
+    ? inventoryStore.materialCategoryOptions 
+    : inventoryStore.utensilCategoryOptions
+  
+  return tabs.map(tab => {
+    const match = categoryOptions.find(cat => cat.categoryId === tab.categoryId)
+    return {
+      ...tab,
+      categoryName: match?.categoryName ?? tab.label
+    }
+  })
+})
+
+const filteredItems = computed(() => {
+  const items = inventoryType.value === 'MATERIAL' 
+    ? inventoryStore.materials 
+    : inventoryStore.utensils
+  return items.filter(item => item.categoryId === selectedCategory.value)
+})
+
+// Methods
+const switchInventoryType = (type) => {
+  inventoryType.value = type
+  form.value.itemType = type
+  
+  // Reset selected category to first category of new type
+  const newTabs = type === 'MATERIAL' ? MATERIAL_TABS : UTENSIL_TABS
+  if (newTabs.length > 0) {
+    selectedCategory.value = newTabs[0].categoryId
+  }
+  
+  // Update URL when switching types
+  if (type === 'MATERIAL' && route.name !== 'materials') {
+    router.push('/materials')
+  } else if (type === 'UTENSIL' && route.name !== 'utensils') {
+    router.push('/utensils')
+  }
+  
+  resetForm()
+}
 
 const handleSubmit = async () => {
   if (isSubmitting.value) return
-
+  
   try {
     isSubmitting.value = true
-    const payload = {
+    const payload = { 
       ...form.value,
-      itemType: 'MATERIAL'
+      shelfLifeDays: form.value.shelfLifeDays ?? null
     }
 
     if (editingItemId.value) {
@@ -141,13 +227,13 @@ const handleSubmit = async () => {
     }
     resetForm()
   } catch (error) {
-    alert(error.message ?? 'Unable to save material right now.')
+    alert(error.message ?? `Unable to save ${inventoryType.value.toLowerCase()} right now.`)
   } finally {
     isSubmitting.value = false
   }
 }
 
-const startEdit = item => {
+const startEdit = (item) => {
   editingItemId.value = item.itemId
   form.value = {
     itemName: item.itemName,
@@ -157,28 +243,29 @@ const startEdit = item => {
     shelfLifeDays: item.shelfLifeDays,
     expirationDate: formatDateInput(item.expirationDate),
     status: item.status ?? 'AVAILABLE',
-    itemType: 'MATERIAL'
+    itemType: item.itemType
   }
 }
 
 const resetForm = () => {
   form.value = {
     itemName: '',
-    categoryId: selectedCategory.value || materialTabs.value[0]?.categoryId || '',
+    categoryId: selectedCategory.value || currentTabs.value[0]?.categoryId || '',
     quantityInStock: null,
     unitCost: null,
     shelfLifeDays: null,
     expirationDate: '',
     status: 'AVAILABLE',
-    itemType: 'MATERIAL'
+    itemType: inventoryType.value
   }
   editingItemId.value = null
 }
 
-const handleDelete = async item => {
+const handleDelete = async (item) => {
   if (!item?.itemId) return
   const confirmed = window.confirm(`Delete ${item.itemName}?`)
   if (!confirmed) return
+
   try {
     await inventoryStore.deleteItem(item.itemId)
   } catch (error) {
@@ -186,37 +273,50 @@ const handleDelete = async item => {
   }
 }
 
-const formatDateInput = dateString => {
+const formatDateInput = (dateString) => {
   if (!dateString) return ''
   return dateString.slice(0, 10)
 }
 
-const formatDisplayDate = dateString => {
+const formatDisplayDate = (dateString) => {
   if (!dateString) return '-'
   return dateString.slice(0, 10)
 }
 
-watch(
-  materialTabs,
-  tabs => {
-    if (!selectedCategory.value && tabs.length) {
-      selectedCategory.value = tabs[0].categoryId
-    }
-  },
-  { immediate: true }
-)
+// Watchers
+watch(currentTabs, (tabs) => {
+  if (!selectedCategory.value && tabs.length) {
+    selectedCategory.value = tabs[0].categoryId
+  }
+}, { immediate: true })
 
-watch(
-  selectedCategory,
-  val => {
-    if (!editingItemId.value && val) {
-      form.value.categoryId = val
-    }
-  },
-  { immediate: true }
-)
+watch(selectedCategory, (val) => {
+  if (!editingItemId.value && val) {
+    form.value.categoryId = val
+  }
+}, { immediate: true })
 
+// Reset category when inventory type changes
+watch(inventoryType, (newType) => {
+  const newTabs = newType === 'MATERIAL' ? MATERIAL_TABS : UTENSIL_TABS
+  if (newTabs.length > 0 && !selectedCategory.value) {
+    selectedCategory.value = newTabs[0].categoryId
+  }
+  resetForm()
+})
+
+// Set initial type based on current route
 onMounted(() => {
+  // Set initial type based on current route
+  if (route.path === '/utensils' || route.name === 'utensils') {
+    inventoryType.value = 'UTENSIL'
+    form.value.itemType = 'UTENSIL'
+  } else {
+    inventoryType.value = 'MATERIAL'
+    form.value.itemType = 'MATERIAL'
+  }
+
+  // Fetch data
   if (!inventoryStore.categories.length) {
     inventoryStore.fetchCategories().catch(error => console.error(error))
   }
@@ -228,25 +328,63 @@ onMounted(() => {
   }
   resetForm()
 })
+
+// Also watch for route changes
+watch(() => route.path, (newPath) => {
+  if (newPath === '/utensils') {
+    inventoryType.value = 'UTENSIL'
+    form.value.itemType = 'UTENSIL'
+  } else if (newPath === '/materials') {
+    inventoryType.value = 'MATERIAL'
+    form.value.itemType = 'MATERIAL'
+  }
+})
 </script>
 
 <style scoped>
-.materials-container {
+/* Your existing styles here - they should work fine */
+.inventory-container {
   padding: 2rem;
   background-color: #FFF7ED;
   min-height: 100vh;
 }
 
-/* Page title */
 .page-title {
   font-size: 1.8rem;
-  color: #8B2E1D;
+  color: #2f7057;
   font-weight: 700;
   text-align: center;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
-/* Tabs */
+.inventory-type-toggle {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.type-button {
+  padding: 0.75rem 1.5rem;
+  border: 2px solid #2f7057;
+  border-radius: 12px;
+  background-color: transparent;
+  color: #2f7057;;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 1rem;
+}
+
+.type-button:hover {
+  background-color: #FEF3C7;
+}
+
+.type-button.active {
+  background-color: #2f7057;;
+  color: white;
+}
+
 .tabs {
   display: flex;
   gap: 1rem;
@@ -259,7 +397,7 @@ onMounted(() => {
   padding: 0.6rem 1.2rem;
   border: none;
   border-radius: 12px;
-  background-color: #D97706;
+  background-color: #2f7057;
   color: #fff;
   font-weight: 600;
   cursor: pointer;
@@ -272,14 +410,13 @@ onMounted(() => {
 }
 
 .tab-button:hover {
-  background-color: #8B2E1D;
+  background-color: #2f7057;
 }
 
 .tab-button.active {
-  background-color: #8B2E1D;
+  background-color: #2f7057;
 }
 
-/* Form Styles */
 .add-form {
   display: flex;
   flex-wrap: wrap;
@@ -298,7 +435,7 @@ onMounted(() => {
 }
 
 .add-form button {
-  background-color: #D97706;
+  background-color: #2f7057;
   color: white;
   border: none;
   padding: 0.6rem 1.2rem;
@@ -332,26 +469,24 @@ onMounted(() => {
   background-color: #d1d5db;
 }
 
-/* Table */
 .table-container {
   background-color: #fff;
   border-radius: 16px;
   padding: 1.5rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  max-width: 900px;
+  max-width: 1000px;
   margin: 0 auto;
   overflow: hidden;
 }
 
 .status-message {
   text-align: center;
-  color: #8B2E1D;
+  color: #2f7057;
   font-weight: 600;
 }
 
 table {
   width: 100%;
-  min-width: 720px;
   border-collapse: collapse;
 }
 
@@ -363,7 +498,7 @@ th, td {
 }
 
 th {
-  color: #8B2E1D;
+  color: #2f7057;;
   font-weight: 700;
 }
 
@@ -404,7 +539,30 @@ td {
 .delete-button:hover {
   background: #b91c1c;
 }
+
+@media (max-width: 768px) {
+  .inventory-container {
+    padding: 1rem;
+  }
+  
+  .add-form {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .add-form input,
+  .add-form select {
+    width: 100%;
+    max-width: 300px;
+  }
+  
+  .tabs {
+    gap: 0.5rem;
+  }
+  
+  .tab-button {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+  }
+}
 </style>
-
-
-

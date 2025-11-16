@@ -10,9 +10,7 @@
     <ul>
       <li><router-link to="/dashboard">Dashboard</router-link></li>
       <li><router-link to="/materials">Materials</router-link></li>
-      <li><router-link to="/utensils">Utensils</router-link></li>
       <li><router-link to="/reports">Reports</router-link></li>
-      <li><router-link to="/orders">Orders</router-link></li>
       <li><button class="logout-btn" @click="logout">Logout</button></li>
     </ul>
   </nav>
@@ -32,18 +30,14 @@ watchEffect(() => {
 
 function logout() {
   localStorage.removeItem('isAuthenticated')
-  
-  // Dispatch custom event so App.vue hides navbar immediately
   window.dispatchEvent(new Event('authChange'))
-  
   router.push('/login')
 }
 </script>
 
 <style scoped>
 nav {
-  background-color:  #1a3f31;
-;
+  background-color: #1a3f31;
   color: #fff;
   padding: 12px 24px;
   display: flex;
@@ -52,11 +46,10 @@ nav {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-/* Brand / Logo + Name */
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px; /* space between logo and name */
+  gap: 10px;
 }
 
 .logo {
