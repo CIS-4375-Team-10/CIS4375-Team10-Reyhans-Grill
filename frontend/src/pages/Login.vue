@@ -24,6 +24,7 @@ function login() {
 
 <template>
   <div class="login-container">
+    <p class="brand-title">Reyhan's Grill I.M.S</p>
     <form @submit.prevent="login" class="login-form">
       <h2>Login</h2>
       <div class="form-group">
@@ -41,11 +42,25 @@ function login() {
 </template>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap');
+
 .login-container {
   display: flex;
   justify-content: center;
   align-items: center;
   height: 100vh;
+  flex-direction: column;
+  gap: 1.5rem;
+  background-color: #f7f3ef;
+}
+
+.brand-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #8B2E1D;
+  letter-spacing: 0.05em;
+  text-align: center;
 }
 
 .login-form {
