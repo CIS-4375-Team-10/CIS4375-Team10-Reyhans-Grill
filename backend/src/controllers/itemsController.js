@@ -15,6 +15,7 @@ const pool = getPool()
 
 const statusEnum = ['AVAILABLE', 'LOW', 'OUT_OF_STOCK']
 const itemTypes = ['MATERIAL', 'UTENSIL', 'OTHER']
+const allowedUnits = ['each', 'lb', 'kg', 'case', 'bag', 'box', 'pack', 'gallon', 'liter']
 
 // Accept a date in YYYY-MM-DD format
 const dateString = z
@@ -26,10 +27,19 @@ const expirationDateSchema = z
   .union([dateString, z.literal('').transform(() => null), z.null()])
   .optional()
 
+const unitSchema = z
+  .string()
+  .min(1)
+  .transform(value => value.trim().toLowerCase())
+  .refine(value => allowedUnits.includes(value), {
+    message: `Unit must be one of: ${allowedUnits.join(', ')}`
+  })
+
 const itemSchema = z.object({
   itemName: z.string().min(1).max(120),
   categoryId: z.string().min(1),
   quantityInStock: z.coerce.number().int().nonnegative(),
+  unit: unitSchema,
   unitCost: z.coerce.number().nonnegative(),
   shelfLifeDays: z.coerce.number().int().nonnegative().optional(),
   expirationDate: expirationDateSchema,
@@ -50,6 +60,7 @@ export const listItems = asyncHandler(async (req, res) => {
             i.Category_ID AS categoryId,
             c.Category_Name AS categoryName,
             i.Quantity_in_Stock AS quantityInStock,
+            i.Unit AS unit,
             i.Unit_Cost AS unitCost,
             i.Shelf_Life_Days AS shelfLifeDays,
             i.Expiration_Date AS expirationDate,
@@ -71,13 +82,14 @@ export const createItem = asyncHandler(async (req, res) => {
 
   await pool.query(
     `INSERT INTO Item
-      (Item_ID, Item_Name, Category_ID, Quantity_in_Stock, Unit_Cost, Shelf_Life_Days, Expiration_Date, Status, Item_Type, Par_Level, Reorder_Point)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (Item_ID, Item_Name, Category_ID, Quantity_in_Stock, Unit, Unit_Cost, Shelf_Life_Days, Expiration_Date, Status, Item_Type, Par_Level, Reorder_Point)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       itemId,
       payload.itemName,
       payload.categoryId,
       payload.quantityInStock,
+      payload.unit,
       payload.unitCost,
       payload.shelfLifeDays,
       payload.expirationDate || null,
@@ -94,6 +106,7 @@ export const createItem = asyncHandler(async (req, res) => {
             i.Category_ID AS categoryId,
             c.Category_Name AS categoryName,
             i.Quantity_in_Stock AS quantityInStock,
+            i.Unit AS unit,
             i.Unit_Cost AS unitCost,
             i.Shelf_Life_Days AS shelfLifeDays,
             i.Expiration_Date AS expirationDate,
@@ -121,6 +134,7 @@ export const updateItem = asyncHandler(async (req, res) => {
     itemName: 'Item_Name',
     categoryId: 'Category_ID',
     quantityInStock: 'Quantity_in_Stock',
+    unit: 'Unit',
     unitCost: 'Unit_Cost',
     shelfLifeDays: 'Shelf_Life_Days',
     expirationDate: 'Expiration_Date',
@@ -159,6 +173,7 @@ export const updateItem = asyncHandler(async (req, res) => {
             i.Category_ID AS categoryId,
             c.Category_Name AS categoryName,
             i.Quantity_in_Stock AS quantityInStock,
+            i.Unit AS unit,
             i.Unit_Cost AS unitCost,
             i.Shelf_Life_Days AS shelfLifeDays,
             i.Expiration_Date AS expirationDate,
@@ -206,6 +221,7 @@ export const listDeletedItems = asyncHandler(async (req, res) => {
             i.Category_ID AS categoryId,
             c.Category_Name AS categoryName,
             i.Quantity_in_Stock AS quantityInStock,
+            i.Unit AS unit,
             i.Unit_Cost AS unitCost,
             i.Shelf_Life_Days AS shelfLifeDays,
             i.Expiration_Date AS expirationDate,
@@ -245,6 +261,7 @@ export const restoreItem = asyncHandler(async (req, res) => {
             i.Category_ID AS categoryId,
             c.Category_Name AS categoryName,
             i.Quantity_in_Stock AS quantityInStock,
+            i.Unit AS unit,
             i.Unit_Cost AS unitCost,
             i.Shelf_Life_Days AS shelfLifeDays,
             i.Expiration_Date AS expirationDate,

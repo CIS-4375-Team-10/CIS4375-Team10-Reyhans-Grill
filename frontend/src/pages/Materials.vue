@@ -43,6 +43,13 @@
       </select>
 
       <input v-model.number="form.quantityInStock" type="number" min="0" placeholder="Qty" required />
+
+      <select v-model="form.unit" required>
+        <option v-for="unitOption in UNIT_OPTIONS" :key="unitOption.value" :value="unitOption.value">
+          {{ unitOption.label }}
+        </option>
+      </select>
+
       <input v-model.number="form.unitCost" type="number" min="0" step="0.01" placeholder="Unit Cost ($)" required />
       
       <input 
@@ -91,6 +98,7 @@
           <tr>
             <th>{{ inventoryType === 'MATERIAL' ? 'Ingredient' : 'Utensil' }}</th>
             <th>Qty</th>
+            <th>Unit</th>
             <th>Unit Cost</th>
             <th>Shelf Life (days)</th>
             <th v-if="inventoryType === 'MATERIAL'">Expiration</th>
@@ -102,6 +110,7 @@
           <tr v-for="item in filteredItems" :key="item.itemId">
             <td>{{ item.itemName }}</td>
             <td>{{ item.quantityInStock }}</td>
+            <td>{{ formatUnitLabel(item.unit) }}</td>
             <td>${{ Number(item.unitCost).toFixed(2) }}</td>
             <td>{{ item.shelfLifeDays }}</td>
             <td v-if="inventoryType === 'MATERIAL'">{{ formatDisplayDate(item.expirationDate) }}</td>
@@ -148,6 +157,20 @@ const UTENSIL_TABS = [
   { categoryId: 'CAT_STORE', label: 'Storage', icon: '🧺' }
 ]
 
+// Allowed units mirror backend validation so dropdown stays in sync
+const UNIT_OPTIONS = [
+  { value: 'each', label: 'Each' },
+  { value: 'lb', label: 'Pound (lb)' },
+  { value: 'kg', label: 'Kilogram (kg)' },
+  { value: 'case', label: 'Case' },
+  { value: 'bag', label: 'Bag' },
+  { value: 'box', label: 'Box' },
+  { value: 'pack', label: 'Pack' },
+  { value: 'gallon', label: 'Gallon' },
+  { value: 'liter', label: 'Liter' }
+]
+
+
 // Reactive state
 const inventoryType = ref('MATERIAL')
 const selectedCategory = ref('')
@@ -158,6 +181,7 @@ const form = ref({
   itemName: '',
   categoryId: '',
   quantityInStock: null,
+  unit: UNIT_OPTIONS[0].value,
   unitCost: null,
   shelfLifeDays: null,
   expirationDate: '',
@@ -219,6 +243,7 @@ const handleSubmit = async () => {
       ...form.value,
       shelfLifeDays: form.value.shelfLifeDays ?? null
     }
+    payload.unit = payload.unit || UNIT_OPTIONS[0].value
 
     if (editingItemId.value) {
       await inventoryStore.updateItem(editingItemId.value, payload)
@@ -239,6 +264,7 @@ const startEdit = (item) => {
     itemName: item.itemName,
     categoryId: item.categoryId,
     quantityInStock: item.quantityInStock,
+    unit: item.unit ?? UNIT_OPTIONS[0].value,
     unitCost: item.unitCost,
     shelfLifeDays: item.shelfLifeDays,
     expirationDate: formatDateInput(item.expirationDate),
@@ -252,6 +278,7 @@ const resetForm = () => {
     itemName: '',
     categoryId: selectedCategory.value || currentTabs.value[0]?.categoryId || '',
     quantityInStock: null,
+    unit: UNIT_OPTIONS[0].value,
     unitCost: null,
     shelfLifeDays: null,
     expirationDate: '',
@@ -281,6 +308,17 @@ const formatDateInput = (dateString) => {
 const formatDisplayDate = (dateString) => {
   if (!dateString) return '-'
   return dateString.slice(0, 10)
+}
+
+const unitLabelMap = UNIT_OPTIONS.reduce((map, option) => {
+  map[option.value] = option.label
+  return map
+}, {})
+
+const formatUnitLabel = unitValue => {
+  if (!unitValue) return '-'
+  const normalized = unitValue.toLowerCase()
+  return unitLabelMap[normalized] ?? normalized
 }
 
 // Watchers

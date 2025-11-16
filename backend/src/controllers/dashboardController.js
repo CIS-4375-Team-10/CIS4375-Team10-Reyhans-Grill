@@ -20,6 +20,7 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
     `SELECT i.Item_ID AS itemId,
             i.Item_Name AS itemName,
             i.Quantity_in_Stock AS quantityInStock,
+            i.Unit AS unit,
             c.Category_Name AS categoryName
        FROM Item i
        JOIN Category c ON c.Category_ID = i.Category_ID
@@ -33,7 +34,8 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
   const [lowStockCutlery] = await pool.query(
     `SELECT i.Item_ID AS itemId,
             i.Item_Name AS itemName,
-            i.Quantity_in_Stock AS quantityInStock
+            i.Quantity_in_Stock AS quantityInStock,
+            i.Unit AS unit
        FROM Item i
       WHERE i.Is_Deleted = 0
         AND i.Category_ID = 'CAT_CUT'
@@ -45,7 +47,8 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
   const [lowStockServing] = await pool.query(
     `SELECT i.Item_ID AS itemId,
             i.Item_Name AS itemName,
-            i.Quantity_in_Stock AS quantityInStock
+            i.Quantity_in_Stock AS quantityInStock,
+            i.Unit AS unit
        FROM Item i
       WHERE i.Is_Deleted = 0
         AND i.Category_ID = 'CAT_SERVE'
@@ -58,6 +61,7 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
     `SELECT i.Item_ID AS itemId,
             i.Item_Name AS itemName,
             i.Quantity_in_Stock AS quantityInStock,
+            i.Unit AS unit,
             i.Expiration_Date AS expirationDate
        FROM Item i
       WHERE i.Is_Deleted = 0

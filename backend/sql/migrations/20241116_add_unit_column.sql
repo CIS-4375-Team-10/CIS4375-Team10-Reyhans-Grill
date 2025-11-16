@@ -1,0 +1,3 @@
+ALTER TABLE Item
+  ADD COLUMN Unit VARCHAR(50) NOT NULL DEFAULT 'each'
+    AFTER Quantity_in_Stock;
