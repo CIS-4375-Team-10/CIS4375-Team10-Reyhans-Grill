@@ -56,8 +56,7 @@
         v-model.number="form.shelfLifeDays" 
         type="number" 
         min="0" 
-        :placeholder="inventoryType === 'MATERIAL' ? 'Shelf Life (days) *' : 'Shelf Life (days)'"
-        :required="inventoryType === 'MATERIAL'"
+        :placeholder="inventoryType === 'MATERIAL' ? 'Shelf Life (days, optional)' : 'Shelf Life (days)'"
       />
       
       <input 
@@ -112,7 +111,7 @@
             <td>{{ item.quantityInStock }}</td>
             <td>{{ formatUnitLabel(item.unit) }}</td>
             <td>${{ Number(item.unitCost).toFixed(2) }}</td>
-            <td>{{ item.shelfLifeDays }}</td>
+            <td>{{ formatShelfLife(item.shelfLifeDays) }}</td>
             <td v-if="inventoryType === 'MATERIAL'">{{ formatDisplayDate(item.expirationDate) }}</td>
             <td>{{ item.status }}</td>
             <td>
@@ -127,6 +126,68 @@
         </tbody>
       </table>
     </div>
+
+    <!-- Usage Logging Section -->
+    <section v-if="inventoryType === 'MATERIAL'" class="usage-section">
+      <h3>Used Inventory / Daily Usage</h3>
+      <p class="usage-description">
+        Log what was used to keep your inventory counts accurate in between deliveries.
+      </p>
+
+      <form class="usage-form" @submit.prevent="handleUsageSubmit">
+        <label>
+          Material
+          <select v-model="usageForm.itemId" required>
+            <option disabled value="">Select material</option>
+            <option
+              v-for="material in materialOptions"
+              :key="material.itemId"
+              :value="material.itemId"
+            >
+              {{ material.itemName }} ({{ material.quantityInStock }} {{ formatUnitLabel(material.unit) }})
+            </option>
+          </select>
+        </label>
+
+        <label>
+          Used Quantity
+          <input
+            v-model.number="usageForm.usedQuantity"
+            type="number"
+            min="0"
+            step="1"
+            placeholder="Qty"
+            required
+          />
+        </label>
+
+        <label>
+          Usage Date (optional)
+          <input v-model="usageForm.usageDate" type="date" />
+        </label>
+
+        <label>
+          Notes (optional)
+          <textarea
+            v-model="usageForm.notes"
+            rows="2"
+            placeholder="e.g., catering event, waste"
+          ></textarea>
+        </label>
+
+        <button type="submit" :disabled="isLoggingUsage || !materialOptions.length">
+          {{ isLoggingUsage ? 'Logging...' : 'Log Usage' }}
+        </button>
+      </form>
+
+      <p class="info-text">
+        You will still occasionally need a physical count to correct drift
+      </p>
+
+      <p v-if="usageStatus.message" :class="['usage-status', usageStatus.type]">
+        {{ usageStatus.message }}
+      </p>
+    </section>
   </main>
 </template>
 
@@ -176,6 +237,7 @@ const inventoryType = ref('MATERIAL')
 const selectedCategory = ref('')
 const isSubmitting = ref(false)
 const editingItemId = ref(null)
+const isLoggingUsage = ref(false)
 
 const form = ref({
   itemName: '',
@@ -187,6 +249,18 @@ const form = ref({
   expirationDate: '',
   status: 'AVAILABLE',
   itemType: 'MATERIAL'
+})
+
+const usageForm = ref({
+  itemId: '',
+  usedQuantity: null,
+  usageDate: new Date().toISOString().slice(0, 10),
+  notes: ''
+})
+
+const usageStatus = ref({
+  type: '',
+  message: ''
 })
 
 // Computed properties
@@ -212,6 +286,8 @@ const filteredItems = computed(() => {
     : inventoryStore.utensils
   return items.filter(item => item.categoryId === selectedCategory.value)
 })
+
+const materialOptions = computed(() => inventoryStore.materials)
 
 // Methods
 const switchInventoryType = (type) => {
@@ -300,6 +376,44 @@ const handleDelete = async (item) => {
   }
 }
 
+const handleUsageSubmit = async () => {
+  if (isLoggingUsage.value) return
+
+  if (!usageForm.value.itemId || !usageForm.value.usedQuantity) {
+    usageStatus.value = {
+      type: 'error',
+      message: 'Please pick a material and enter the quantity used.'
+    }
+    return
+  }
+
+  try {
+    isLoggingUsage.value = true
+    usageStatus.value = { type: '', message: '' }
+
+    await inventoryStore.logItemUsage(usageForm.value.itemId, {
+      usedQuantity: usageForm.value.usedQuantity,
+      usageDate: usageForm.value.usageDate || undefined,
+      notes: usageForm.value.notes || undefined
+    })
+
+    usageStatus.value = {
+      type: 'success',
+      message: 'Usage logged and inventory updated.'
+    }
+    usageForm.value.usedQuantity = null
+    usageForm.value.notes = ''
+    usageForm.value.usageDate = new Date().toISOString().slice(0, 10)
+  } catch (error) {
+    usageStatus.value = {
+      type: 'error',
+      message: error.message ?? 'Unable to log usage right now.'
+    }
+  } finally {
+    isLoggingUsage.value = false
+  }
+}
+
 const formatDateInput = (dateString) => {
   if (!dateString) return ''
   return dateString.slice(0, 10)
@@ -308,6 +422,11 @@ const formatDateInput = (dateString) => {
 const formatDisplayDate = (dateString) => {
   if (!dateString) return '-'
   return dateString.slice(0, 10)
+}
+
+const formatShelfLife = value => {
+  const numericValue = Number(value ?? 0)
+  return numericValue > 0 ? numericValue : 'N/A'
 }
 
 const unitLabelMap = UNIT_OPTIONS.reduce((map, option) => {
@@ -342,6 +461,12 @@ watch(inventoryType, (newType) => {
   }
   resetForm()
 })
+
+watch(materialOptions, materials => {
+  if (materials.length && !usageForm.value.itemId) {
+    usageForm.value.itemId = materials[0].itemId
+  }
+}, { immediate: true })
 
 // Set initial type based on current route
 onMounted(() => {
@@ -576,6 +701,89 @@ td {
 
 .delete-button:hover {
   background: #b91c1c;
+}
+
+.usage-section {
+  background-color: #fff;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  max-width: 1000px;
+  margin: 1.5rem auto 0;
+}
+
+.usage-description {
+  color: #4b5563;
+  margin-bottom: 1rem;
+}
+
+.usage-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  align-items: end;
+  margin-bottom: 1rem;
+}
+
+.usage-form label {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+  color: #2f7057;
+  gap: 0.35rem;
+}
+
+.usage-form textarea {
+  resize: vertical;
+}
+
+.usage-form input,
+.usage-form select,
+.usage-form textarea {
+  padding: 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.usage-form button {
+  background-color: #2f7057;
+  color: #fff;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.usage-form button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.usage-form button:not(:disabled):hover {
+  background-color: #245845;
+}
+
+.info-text {
+  margin: 0.25rem 0;
+  color: #92400e;
+  font-weight: 600;
+}
+
+.usage-status {
+  margin-top: 0.5rem;
+  font-weight: 600;
+}
+
+.usage-status.success {
+  color: #065f46;
+}
+
+.usage-status.error {
+  color: #b91c1c;
 }
 
 @media (max-width: 768px) {
