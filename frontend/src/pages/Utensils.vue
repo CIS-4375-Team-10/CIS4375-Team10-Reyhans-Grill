@@ -2,50 +2,78 @@
   <main class="utensils-container">
     <h2 class="page-title">Utensils Inventory</h2>
 
-    <!-- Tabs -->
     <div class="tabs">
       <button
-        v-for="category in utensilCategories"
-        :key="category.name"
-        :class="['tab-button', { active: selectedCategory === category.name }]"
-        @click="selectedCategory = category.name"
+        v-for="category in utensilTabs"
+        :key="category.categoryId"
+        :class="['tab-button', { active: selectedCategory === category.categoryId }]"
+        @click="selectedCategory = category.categoryId"
       >
-        {{ category.icon }} {{ category.name }}
+        <span class="tab-icon">{{ category.icon }}</span>
+        {{ category.categoryName }}
       </button>
     </div>
 
-    <!-- ✅Add New Utensil Form -->
-    <form class="add-form" @submit.prevent="addUtensil">
-      <input v-model="newUtensil.name" placeholder="Utensil Name" required />
-      <select v-model="newUtensil.category" required>
+    <form class="add-form" @submit.prevent="handleSubmit">
+      <input v-model="form.itemName" placeholder="Utensil Name" required />
+      <select v-model="form.categoryId" required>
         <option disabled value="">Select Category</option>
-        <option v-for="category in utensilCategories" :key="category.name" :value="category.name">
-          {{ category.icon }} {{ category.name }}
+        <option v-for="category in utensilTabs" :key="category.categoryId" :value="category.categoryId">
+          {{ category.categoryName }}
         </option>
       </select>
-      <input v-model.number="newUtensil.quantity" type="number" placeholder="Qty" required />
-      <input v-model="newUtensil.purchaseDate" type="date" required />
-      <input v-model="newUtensil.condition" placeholder="Condition (e.g., New, Used)" required />
-      <button type="submit">Add Utensil</button>
+      <input v-model.number="form.quantityInStock" type="number" min="0" placeholder="Qty" required />
+      <input v-model.number="form.unitCost" type="number" min="0" step="0.01" placeholder="Unit Cost ($)" required />
+      <input
+        v-model.number="form.shelfLifeDays"
+        type="number"
+        min="0"
+        placeholder="Shelf Life (days)"
+      />
+      <select v-model="form.status">
+        <option value="AVAILABLE">Available</option>
+        <option value="LOW">Low</option>
+        <option value="OUT_OF_STOCK">Out of Stock</option>
+      </select>
+      <div class="button-group">
+        <button type="submit" :disabled="isSubmitting">
+          {{ editingItemId ? (isSubmitting ? 'Updating...' : 'Update Utensil') : (isSubmitting ? 'Saving...' : 'Add Utensil') }}
+        </button>
+        <button v-if="editingItemId" type="button" class="secondary" @click="resetForm">Cancel</button>
+      </div>
     </form>
 
-    <!-- Utensils Table -->
     <div class="table-container">
-      <table>
+      <div v-if="inventoryStore.loading.items" class="status-message">Loading utensils...</div>
+      <div v-else-if="!filteredUtensils.length" class="status-message">
+        No utensils tracked in this category yet.
+      </div>
+      <table v-else>
         <thead>
           <tr>
             <th>Utensil</th>
             <th>Qty</th>
-            <th>Purchase Date</th>
-            <th>Condition</th>
+            <th>Unit Cost</th>
+            <th>Shelf Life (days)</th>
+            <th>Status</th>
+            <th class="actions-col">Actions</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in filteredUtensils" :key="item.name">
-            <td>{{ item.name }}</td>
-            <td>{{ item.quantity }}</td>
-            <td>{{ item.purchaseDate }}</td>
-            <td>{{ item.condition }}</td>
+          <tr v-for="item in filteredUtensils" :key="item.itemId">
+            <td>{{ item.itemName }}</td>
+            <td>{{ item.quantityInStock }}</td>
+            <td>${{ Number(item.unitCost).toFixed(2) }}</td>
+            <td>{{ item.shelfLifeDays }}</td>
+            <td>{{ item.status }}</td>
+            <td>
+              <button class="edit-button" type="button" @click="startEdit(item)">
+                Edit
+              </button>
+              <button class="delete-button" type="button" @click="handleDelete(item)">
+                Delete
+              </button>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -54,64 +82,146 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
-// Categories with emoji icons
-const utensilCategories = [
-  { name: 'Cooking', icon: '🍳' },
-  { name: 'Serving', icon: '🍽️' },
-  { name: 'Baking', icon: '🥧' },
-  { name: 'Cutlery', icon: '🔪' },
-  { name: 'Storage', icon: '🧺' }
+import { useInventoryStore } from '../stores/inventoryStore'
+
+const inventoryStore = useInventoryStore()
+const UTENSIL_TABS = [
+  { categoryId: 'CAT_COOK', label: 'Cooking', icon: '🍳' },
+  { categoryId: 'CAT_SERVE', label: 'Serving', icon: '🍽️' },
+  { categoryId: 'CAT_BAKE', label: 'Baking', icon: '🧁' },
+  { categoryId: 'CAT_CUT', label: 'Cutlery', icon: '🔪' },
+  { categoryId: 'CAT_STORE', label: 'Storage', icon: '🧺' }
 ]
 
-const selectedCategory = ref('Cooking')
+const utensilTabs = computed(() =>
+  UTENSIL_TABS.map(tab => {
+    const match = inventoryStore.utensilCategoryOptions.find(cat => cat.categoryId === tab.categoryId)
+    return {
+      ...tab,
+      categoryName: match?.categoryName ?? tab.label
+    }
+  })
+)
 
-// Hardcoded example utensils
-const utensils = ref([
-  { name: 'Spatula', quantity: 10, purchaseDate: '2025-09-01', condition: 'New', category: 'Cooking' },
-  { name: 'Frying Pan', quantity: 5, purchaseDate: '2025-08-20', condition: 'Used', category: 'Cooking' },
-  { name: 'Ladle', quantity: 7, purchaseDate: '2025-07-15', condition: 'New', category: 'Cooking' },
-  { name: 'Serving Spoon', quantity: 12, purchaseDate: '2025-09-10', condition: 'New', category: 'Serving' },
-  { name: 'Tray', quantity: 4, purchaseDate: '2025-09-12', condition: 'Used', category: 'Serving' },
-  { name: 'Baking Tray', quantity: 3, purchaseDate: '2025-08-01', condition: 'New', category: 'Baking' },
-  { name: 'Rolling Pin', quantity: 2, purchaseDate: '2025-07-22', condition: 'Used', category: 'Baking' },
-  { name: 'Knife', quantity: 15, purchaseDate: '2025-10-01', condition: 'New', category: 'Cutlery' },
-  { name: 'Fork', quantity: 20, purchaseDate: '2025-09-15', condition: 'New', category: 'Cutlery' },
-  { name: 'Storage Box', quantity: 8, purchaseDate: '2025-06-10', condition: 'Used', category: 'Storage' },
-  { name: 'Plastic Container', quantity: 10, purchaseDate: '2025-05-20', condition: 'New', category: 'Storage' }
-])
+const selectedCategory = ref(utensilTabs.value[0]?.categoryId ?? '')
+const isSubmitting = ref(false)
+const editingItemId = ref(null)
 
-// For the new utensil form
-const newUtensil = ref({
-  name: '',
-  quantity: null,
-  purchaseDate: '',
-  condition: '',
-  category: ''
+const form = ref({
+  itemName: '',
+  categoryId: '',
+  quantityInStock: null,
+  unitCost: null,
+  shelfLifeDays: null,
+  expirationDate: '',
+  status: 'AVAILABLE',
+  itemType: 'UTENSIL'
 })
 
-// Add utensil function
-function addUtensil() {
-  if (
-    !newUtensil.value.name ||
-    !newUtensil.value.quantity ||
-    !newUtensil.value.purchaseDate ||
-    !newUtensil.value.condition ||
-    !newUtensil.value.category
-  ) {
-    alert('Please fill all fields')
-    return
-  }
+const filteredUtensils = computed(() =>
+  inventoryStore.utensils.filter(item => item.categoryId === selectedCategory.value)
+)
 
-  utensils.value.push({ ...newUtensil.value })
-  newUtensil.value = { name: '', quantity: null, purchaseDate: '', condition: '', category: '' }
+const handleSubmit = async () => {
+  if (isSubmitting.value) return
+  try {
+    isSubmitting.value = true
+    const payload = {
+      ...form.value,
+      itemType: 'UTENSIL',
+      shelfLifeDays: form.value.shelfLifeDays ?? null
+    }
+    if (editingItemId.value) {
+      await inventoryStore.updateItem(editingItemId.value, payload)
+    } else {
+      await inventoryStore.createItem(payload)
+    }
+    resetForm()
+  } catch (error) {
+    alert(error.message ?? 'Unable to save utensil right now.')
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
-// Filter by selected tab
-const filteredUtensils = computed(() =>
-  utensils.value.filter(item => item.category === selectedCategory.value)
+const startEdit = item => {
+  editingItemId.value = item.itemId
+  form.value = {
+    itemName: item.itemName,
+    categoryId: item.categoryId,
+    quantityInStock: item.quantityInStock,
+    unitCost: item.unitCost,
+    shelfLifeDays: item.shelfLifeDays,
+    expirationDate: formatDateInput(item.expirationDate),
+    status: item.status ?? 'AVAILABLE',
+    itemType: 'UTENSIL'
+  }
+}
+
+const resetForm = () => {
+  form.value = {
+    itemName: '',
+    categoryId: selectedCategory.value || utensilTabs.value[0]?.categoryId || '',
+    quantityInStock: null,
+    unitCost: null,
+    shelfLifeDays: null,
+    expirationDate: '',
+    status: 'AVAILABLE',
+    itemType: 'UTENSIL'
+  }
+  editingItemId.value = null
+}
+
+const handleDelete = async item => {
+  if (!item?.itemId) return
+  const confirmed = window.confirm(`Delete ${item.itemName}?`)
+  if (!confirmed) return
+  try {
+    await inventoryStore.deleteItem(item.itemId)
+  } catch (error) {
+    alert(error.message ?? 'Unable to delete item right now.')
+  }
+}
+
+const formatDateInput = dateString => {
+  if (!dateString) return ''
+  return dateString.slice(0, 10)
+}
+
+watch(
+  utensilTabs,
+  tabs => {
+    if (!selectedCategory.value && tabs.length) {
+      selectedCategory.value = tabs[0].categoryId
+    }
+  },
+  { immediate: true }
 )
+
+watch(
+  selectedCategory,
+  val => {
+    if (!editingItemId.value && val) {
+      form.value.categoryId = val
+    }
+  },
+  { immediate: true }
+)
+
+onMounted(() => {
+  if (!inventoryStore.categories.length) {
+    inventoryStore.fetchCategories().catch(error => console.error(error))
+  }
+  if (!inventoryStore.items.length) {
+    inventoryStore.fetchItems().catch(error => console.error(error))
+  }
+  if (!inventoryStore.summary) {
+    inventoryStore.fetchSummary().catch(error => console.error(error))
+  }
+  resetForm()
+})
 </script>
 
 <style scoped>
@@ -151,6 +261,10 @@ const filteredUtensils = computed(() =>
   font-size: 1rem;
 }
 
+.tab-icon {
+  margin-right: 0.4rem;
+}
+
 .tab-button:hover {
   background-color: #8B2E1D;
 }
@@ -159,7 +273,7 @@ const filteredUtensils = computed(() =>
   background-color: #8B2E1D;
 }
 
-/* ✅ Form Styles */
+/* Form Styles */
 .add-form {
   display: flex;
   flex-wrap: wrap;
@@ -188,8 +302,27 @@ const filteredUtensils = computed(() =>
   transition: background-color 0.3s;
 }
 
-.add-form button:hover {
+.add-form button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.add-form button:hover:not(:disabled) {
   background-color: #8B2E1D;
+}
+
+.button-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.add-form .secondary {
+  background-color: #e5e7eb;
+  color: #1f2937;
+}
+
+.add-form .secondary:hover {
+  background-color: #d1d5db;
 }
 
 /* Table */
@@ -203,10 +336,16 @@ const filteredUtensils = computed(() =>
   overflow: hidden;
 }
 
+.status-message {
+  text-align: center;
+  color: #8B2E1D;
+  font-weight: 600;
+}
+
 table {
   width: 100%;
+  min-width: 640px;
   border-collapse: collapse;
-  table-layout: fixed;
 }
 
 th, td {
@@ -226,24 +365,37 @@ td {
   font-weight: 500;
 }
 
-/* Equal width columns */
-th:nth-child(1),
-td:nth-child(1) {
-  width: 25%;
+.actions-col {
+  width: 120px;
 }
 
-th:nth-child(2),
-td:nth-child(2) {
-  width: 15%;
+.delete-button {
+  background: #ef4444;
+  border: none;
+  color: #fff;
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
 }
 
-th:nth-child(3),
-td:nth-child(3) {
-  width: 30%;
+.edit-button {
+  background: #2563eb;
+  border: none;
+  color: #fff;
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  margin-right: 0.35rem;
 }
 
-th:nth-child(4),
-td:nth-child(4) {
-  width: 30%;
+.edit-button:hover {
+  background: #1d4ed8;
+}
+
+.delete-button:hover {
+  background: #b91c1c;
 }
 </style>
+

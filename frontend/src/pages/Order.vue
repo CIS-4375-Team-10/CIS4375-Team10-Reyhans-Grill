@@ -2,25 +2,26 @@
   <main class="orders-container">
     <h2 class="page-title">Orders</h2>
 
-    <!-- Orders Table -->
     <div class="table-container">
-      <table>
+      <div v-if="inventoryStore.loading.purchases" class="status-message">Loading purchases...</div>
+      <div v-else-if="!purchases.length" class="status-message">No purchases to show yet.</div>
+      <table v-else>
         <thead>
           <tr>
             <th>Order ID</th>
-            <th>Vendor</th>
-            <th>Status</th>
+            <th>Item</th>
+            <th>User</th>
             <th>Order Date</th>
             <th>Total ($)</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="order in orders" :key="order.id">
-            <td>{{ order.id }}</td>
-            <td>{{ order.vendor }}</td>
-            <td>{{ order.status }}</td>
-            <td>{{ order.date }}</td>
-            <td>{{ order.total }}</td>
+          <tr v-for="purchase in purchases" :key="purchase.purchaseId">
+            <td>{{ purchase.purchaseId }}</td>
+            <td>{{ purchase.itemName }}</td>
+            <td>{{ purchase.username }}</td>
+            <td>{{ purchase.purchaseDate }}</td>
+            <td>{{ Number(purchase.totalCost).toFixed(2) }}</td>
           </tr>
         </tbody>
       </table>
@@ -29,15 +30,19 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, onMounted } from 'vue'
 
-// Hardcoded example orders
-const orders = ref([
-  { id: 101, vendor: 'DoorDash', status: 'Delivered', date: '2025-10-18', total: 45.50 },
-  { id: 102, vendor: 'UberEats', status: 'Preparing', date: '2025-10-19', total: 32.75 },
-  { id: 103, vendor: 'Grubhub', status: 'Pending', date: '2025-10-19', total: 28.90 },
-  { id: 104, vendor: 'DoorDash', status: 'Cancelled', date: '2025-10-17', total: 15.00 },
-])
+import { useInventoryStore } from '../stores/inventoryStore'
+
+const inventoryStore = useInventoryStore()
+
+onMounted(() => {
+  if (!inventoryStore.purchases.length) {
+    inventoryStore.fetchPurchases().catch(error => console.error(error))
+  }
+})
+
+const purchases = computed(() => inventoryStore.purchases)
 </script>
 
 <style scoped>
@@ -63,6 +68,12 @@ const orders = ref([
   max-width: 900px;
   margin: 0 auto;
   overflow: hidden;
+}
+
+.status-message {
+  text-align: center;
+  color: #8B2E1D;
+  font-weight: 600;
 }
 
 table {

@@ -2,50 +2,76 @@
   <main class="materials-container">
     <h2 class="page-title">Materials Inventory</h2>
 
-    <!-- Tabs -->
     <div class="tabs">
       <button
-        v-for="group in foodGroups"
-        :key="group.name"
-        :class="['tab-button', { active: selectedGroup === group.name }]"
-        @click="selectedGroup = group.name"
+        v-for="group in materialTabs"
+        :key="group.categoryId"
+        :class="['tab-button', { active: selectedCategory === group.categoryId }]"
+        @click="selectedCategory = group.categoryId"
       >
-        {{ group.icon }} {{ group.name }}
+        <span class="tab-icon">{{ group.icon }}</span>
+        {{ group.categoryName }}
       </button>
     </div>
 
-    <!-- ✅ Add New Material Form -->
-    <form class="add-form" @submit.prevent="addMaterial">
-      <input v-model="newMaterial.name" placeholder="Material Name" required />
-      <select v-model="newMaterial.group" required>
+    <form class="add-form" @submit.prevent="handleSubmit">
+      <input v-model="form.itemName" placeholder="Material Name" required />
+      <select v-model="form.categoryId" required>
         <option disabled value="">Select Category</option>
-        <option v-for="group in foodGroups" :key="group.name" :value="group.name">
-          {{ group.icon }} {{ group.name }}
+        <option v-for="group in materialTabs" :key="group.categoryId" :value="group.categoryId">
+          {{ group.categoryName }}
         </option>
       </select>
-      <input v-model.number="newMaterial.quantity" type="number" placeholder="Qty" required />
-      <input v-model="newMaterial.startDate" type="date" required />
-      <input v-model="newMaterial.expiration" type="date" required />
-      <button type="submit">Add Material</button>
+      <input v-model.number="form.quantityInStock" type="number" min="0" placeholder="Qty" required />
+      <input v-model.number="form.unitCost" type="number" step="0.01" min="0" placeholder="Unit Cost ($)" required />
+      <input v-model.number="form.shelfLifeDays" type="number" min="0" placeholder="Shelf Life (days)" required />
+      <input v-model="form.expirationDate" type="date" />
+      <select v-model="form.status">
+        <option value="AVAILABLE">Available</option>
+        <option value="LOW">Low</option>
+        <option value="OUT_OF_STOCK">Out of Stock</option>
+      </select>
+      <div class="button-group">
+        <button type="submit" :disabled="isSubmitting">
+          {{ editingItemId ? (isSubmitting ? 'Updating...' : 'Update Material') : (isSubmitting ? 'Saving...' : 'Add Material') }}
+        </button>
+        <button v-if="editingItemId" type="button" class="secondary" @click="resetForm">Cancel</button>
+      </div>
     </form>
 
-    <!-- Materials Table -->
     <div class="table-container">
-      <table>
+      <div v-if="inventoryStore.loading.items" class="status-message">Loading materials...</div>
+      <div v-else-if="!filteredMaterials.length" class="status-message">
+        No materials in this category yet.
+      </div>
+      <table v-else>
         <thead>
           <tr>
             <th>Ingredient</th>
             <th>Qty</th>
-            <th>Start Date</th>
-            <th>Expected Expiration</th>
+            <th>Unit Cost</th>
+            <th>Shelf Life (days)</th>
+            <th>Expiration</th>
+            <th>Status</th>
+            <th class="actions-col">Actions</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in filteredMaterials" :key="item.name">
-            <td>{{ item.name }}</td>
-            <td>{{ item.quantity }}</td>
-            <td>{{ item.startDate }}</td>
-            <td>{{ item.expiration }}</td>
+          <tr v-for="item in filteredMaterials" :key="item.itemId">
+            <td>{{ item.itemName }}</td>
+            <td>{{ item.quantityInStock }}</td>
+            <td>${{ Number(item.unitCost).toFixed(2) }}</td>
+            <td>{{ item.shelfLifeDays }}</td>
+            <td>{{ formatDisplayDate(item.expirationDate) }}</td>
+            <td>{{ item.status }}</td>
+            <td>
+              <button class="edit-button" type="button" @click="startEdit(item)">
+                Edit
+              </button>
+              <button class="delete-button" type="button" @click="handleDelete(item)">
+                Delete
+              </button>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -54,67 +80,154 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
-// Food groups with emoji icons
-const foodGroups = [
-  { name: 'Fruits', icon: '🍌' },
-  { name: 'Vegetables', icon: '🥦' },
-  { name: 'Grains', icon: '🌾' },
-  { name: 'Protein', icon: '🍗' },
-  { name: 'Dairy', icon: '🥛' },
-  { name: 'Drinks', icon: '🥤' }
+import { useInventoryStore } from '../stores/inventoryStore'
+
+const inventoryStore = useInventoryStore()
+
+const MATERIAL_TABS = [
+  { categoryId: 'CAT_FRUITS', label: 'Fruits', icon: '🍎' },
+  { categoryId: 'CAT_VEG', label: 'Vegetables', icon: '🥕' },
+  { categoryId: 'CAT_GRAINS', label: 'Grains', icon: '🌾' },
+  { categoryId: 'CAT_PROTEIN', label: 'Protein', icon: '🍗' },
+  { categoryId: 'CAT_DAIRY', label: 'Dairy', icon: '🥛' },
+  { categoryId: 'CAT_DRINK', label: 'Drinks', icon: '🥤' }
 ]
 
-const selectedGroup = ref('Fruits')
+const materialTabs = computed(() =>
+  MATERIAL_TABS.map(tab => {
+    const match = inventoryStore.materialCategoryOptions.find(cat => cat.categoryId === tab.categoryId)
+    return {
+      ...tab,
+      categoryName: match?.categoryName ?? tab.label
+    }
+  })
+)
 
-// Hardcoded example materials
-const materials = ref([
-  { name: 'Apple', quantity: 50, startDate: '2025-10-15', expiration: '2025-10-25', group: 'Fruits' },
-  { name: 'Banana', quantity: 30, startDate: '2025-10-16', expiration: '2025-10-22', group: 'Fruits' },
-  { name: 'Carrot', quantity: 40, startDate: '2025-10-14', expiration: '2025-10-30', group: 'Vegetables' },
-  { name: 'Spinach', quantity: 25, startDate: '2025-10-15', expiration: '2025-10-24', group: 'Vegetables' },
-  { name: 'Rice', quantity: 100, startDate: '2025-09-01', expiration: '2026-01-15', group: 'Grains' },
-  { name: 'Bread', quantity: 20, startDate: '2025-10-18', expiration: '2025-10-20', group: 'Grains' },
-  { name: 'Chicken', quantity: 15, startDate: '2025-10-17', expiration: '2025-10-21', group: 'Protein' },
-  { name: 'Beef', quantity: 10, startDate: '2025-10-16', expiration: '2025-10-23', group: 'Protein' },
-  { name: 'Milk', quantity: 30, startDate: '2025-10-14', expiration: '2025-10-18', group: 'Dairy' },
-  { name: 'Cheese', quantity: 25, startDate: '2025-10-10', expiration: '2025-11-05', group: 'Dairy' },
-  { name: 'Cola', quantity: 60, startDate: '2025-10-01', expiration: '2026-01-01', group: 'Drinks' },
-  { name: 'Orange Juice', quantity: 35, startDate: '2025-10-03', expiration: '2025-11-01', group: 'Drinks' },
-  { name: 'Water Bottle', quantity: 80, startDate: '2025-10-05', expiration: '2027-10-05', group: 'Drinks' }
-])
+const selectedCategory = ref(materialTabs.value[0]?.categoryId ?? '')
+const isSubmitting = ref(false)
+const editingItemId = ref(null)
 
-// For the new material form
-const newMaterial = ref({
-  name: '',
-  quantity: null,
-  startDate: '',
-  expiration: '',
-  group: ''
+const form = ref({
+  itemName: '',
+  categoryId: '',
+  quantityInStock: null,
+  unitCost: null,
+  shelfLifeDays: null,
+  expirationDate: '',
+  status: 'AVAILABLE',
+  itemType: 'MATERIAL'
 })
 
-// Add material function
-function addMaterial() {
-  if (
-    !newMaterial.value.name ||
-    !newMaterial.value.quantity ||
-    !newMaterial.value.startDate ||
-    !newMaterial.value.expiration ||
-    !newMaterial.value.group
-  ) {
-    alert('Please fill all fields')
-    return
-  }
+const filteredMaterials = computed(() =>
+  inventoryStore.materials.filter(item => item.categoryId === selectedCategory.value)
+)
 
-  materials.value.push({ ...newMaterial.value })
-  newMaterial.value = { name: '', quantity: null, startDate: '', expiration: '', group: '' }
+const handleSubmit = async () => {
+  if (isSubmitting.value) return
+
+  try {
+    isSubmitting.value = true
+    const payload = {
+      ...form.value,
+      itemType: 'MATERIAL'
+    }
+
+    if (editingItemId.value) {
+      await inventoryStore.updateItem(editingItemId.value, payload)
+    } else {
+      await inventoryStore.createItem(payload)
+    }
+    resetForm()
+  } catch (error) {
+    alert(error.message ?? 'Unable to save material right now.')
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
-// Filter by selected tab
-const filteredMaterials = computed(() =>
-  materials.value.filter(item => item.group === selectedGroup.value)
+const startEdit = item => {
+  editingItemId.value = item.itemId
+  form.value = {
+    itemName: item.itemName,
+    categoryId: item.categoryId,
+    quantityInStock: item.quantityInStock,
+    unitCost: item.unitCost,
+    shelfLifeDays: item.shelfLifeDays,
+    expirationDate: formatDateInput(item.expirationDate),
+    status: item.status ?? 'AVAILABLE',
+    itemType: 'MATERIAL'
+  }
+}
+
+const resetForm = () => {
+  form.value = {
+    itemName: '',
+    categoryId: selectedCategory.value || materialTabs.value[0]?.categoryId || '',
+    quantityInStock: null,
+    unitCost: null,
+    shelfLifeDays: null,
+    expirationDate: '',
+    status: 'AVAILABLE',
+    itemType: 'MATERIAL'
+  }
+  editingItemId.value = null
+}
+
+const handleDelete = async item => {
+  if (!item?.itemId) return
+  const confirmed = window.confirm(`Delete ${item.itemName}?`)
+  if (!confirmed) return
+  try {
+    await inventoryStore.deleteItem(item.itemId)
+  } catch (error) {
+    alert(error.message ?? 'Unable to delete item right now.')
+  }
+}
+
+const formatDateInput = dateString => {
+  if (!dateString) return ''
+  return dateString.slice(0, 10)
+}
+
+const formatDisplayDate = dateString => {
+  if (!dateString) return '-'
+  return dateString.slice(0, 10)
+}
+
+watch(
+  materialTabs,
+  tabs => {
+    if (!selectedCategory.value && tabs.length) {
+      selectedCategory.value = tabs[0].categoryId
+    }
+  },
+  { immediate: true }
 )
+
+watch(
+  selectedCategory,
+  val => {
+    if (!editingItemId.value && val) {
+      form.value.categoryId = val
+    }
+  },
+  { immediate: true }
+)
+
+onMounted(() => {
+  if (!inventoryStore.categories.length) {
+    inventoryStore.fetchCategories().catch(error => console.error(error))
+  }
+  if (!inventoryStore.items.length) {
+    inventoryStore.fetchItems().catch(error => console.error(error))
+  }
+  if (!inventoryStore.summary) {
+    inventoryStore.fetchSummary().catch(error => console.error(error))
+  }
+  resetForm()
+})
 </script>
 
 <style scoped>
@@ -154,6 +267,10 @@ const filteredMaterials = computed(() =>
   font-size: 1rem;
 }
 
+.tab-icon {
+  margin-right: 0.4rem;
+}
+
 .tab-button:hover {
   background-color: #8B2E1D;
 }
@@ -162,7 +279,7 @@ const filteredMaterials = computed(() =>
   background-color: #8B2E1D;
 }
 
-/* ✅ Form Styles */
+/* Form Styles */
 .add-form {
   display: flex;
   flex-wrap: wrap;
@@ -191,8 +308,28 @@ const filteredMaterials = computed(() =>
   transition: background-color 0.3s;
 }
 
-.add-form button:hover {
+.add-form button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.add-form button:hover:not(:disabled) {
   background-color: #8B2E1D;
+}
+
+.button-group {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.add-form .secondary {
+  background-color: #e5e7eb;
+  color: #1f2937;
+}
+
+.add-form .secondary:hover {
+  background-color: #d1d5db;
 }
 
 /* Table */
@@ -206,10 +343,16 @@ const filteredMaterials = computed(() =>
   overflow: hidden;
 }
 
+.status-message {
+  text-align: center;
+  color: #8B2E1D;
+  font-weight: 600;
+}
+
 table {
   width: 100%;
+  min-width: 720px;
   border-collapse: collapse;
-  table-layout: fixed;
 }
 
 th, td {
@@ -229,24 +372,39 @@ td {
   font-weight: 500;
 }
 
-/* Equal width columns */
-th:nth-child(1),
-td:nth-child(1) {
-  width: 25%;
+.actions-col {
+  width: 120px;
 }
 
-th:nth-child(2),
-td:nth-child(2) {
-  width: 15%;
+.delete-button {
+  background: #ef4444;
+  border: none;
+  color: #fff;
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
 }
 
-th:nth-child(3),
-td:nth-child(3) {
-  width: 30%;
+.edit-button {
+  background: #2563eb;
+  border: none;
+  color: #fff;
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  margin-right: 0.35rem;
 }
 
-th:nth-child(4),
-td:nth-child(4) {
-  width: 30%;
+.edit-button:hover {
+  background: #1d4ed8;
+}
+
+.delete-button:hover {
+  background: #b91c1c;
 }
 </style>
+
+
+
