@@ -133,9 +133,10 @@ const fallbackChartData = {
   padding: 1.5rem;
   background-color: #FFF7ED;
   min-height: 100vh;
-  max-width: 1400px;
-  margin: 0 auto;
-}
+  width: 100%;       
+  box-sizing: border-box; 
+  }
+
 
 .metrics-title {
   font-size: 1.6rem;
