@@ -320,6 +320,8 @@ const handleSubmit = async () => {
       shelfLifeDays: form.value.shelfLifeDays ?? null
     }
     payload.unit = payload.unit || UNIT_OPTIONS[0].value
+    payload.status = payload.status || 'AVAILABLE'
+    payload.itemType = payload.itemType || inventoryType.value
 
     if (editingItemId.value) {
       await inventoryStore.updateItem(editingItemId.value, payload)
@@ -344,8 +346,8 @@ const startEdit = (item) => {
     unitCost: item.unitCost,
     shelfLifeDays: item.shelfLifeDays,
     expirationDate: formatDateInput(item.expirationDate),
-    status: item.status ?? 'AVAILABLE',
-    itemType: item.itemType
+    status: item.status || 'AVAILABLE',
+    itemType: item.itemType || (inventoryType.value === 'UTENSIL' ? 'UTENSIL' : 'MATERIAL')
   }
 }
 
@@ -359,7 +361,7 @@ const resetForm = () => {
     shelfLifeDays: null,
     expirationDate: '',
     status: 'AVAILABLE',
-    itemType: inventoryType.value
+    itemType: inventoryType.value === 'UTENSIL' ? 'UTENSIL' : 'MATERIAL'
   }
   editingItemId.value = null
 }
@@ -558,13 +560,13 @@ watch(() => route.path, (newPath) => {
 
 .tab-button {
   padding: 0.6rem 1.2rem;
-  border: none;
-  border-radius: 12px;
-  background-color: #2f7057;
-  color: #fff;
+  border-radius: 999px;
+  border: 2px solid #2f7057;
+  background-color: transparent;
+  color: #2f7057;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
   font-size: 1rem;
 }
 
@@ -573,11 +575,13 @@ watch(() => route.path, (newPath) => {
 }
 
 .tab-button:hover {
-  background-color: #2f7057;
+  background-color: #e0efe8;
 }
 
 .tab-button.active {
   background-color: #2f7057;
+  color: #fff;
+  border-color: #2f7057;
 }
 
 .add-form {
