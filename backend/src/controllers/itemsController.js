@@ -41,6 +41,7 @@ const itemSchema = z.object({
   quantityInStock: z.coerce.number().int().nonnegative(),
   unit: unitSchema,
   unitCost: z.coerce.number().nonnegative(),
+  purchaseDate: dateString.optional(),
   shelfLifeDays: z.coerce.number().int().nonnegative().optional(),
   expirationDate: expirationDateSchema,
   status: z.enum(statusEnum).default('AVAILABLE'),
@@ -73,12 +74,15 @@ export const listItems = asyncHandler(async (req, res) => {
             i.Quantity_in_Stock AS quantityInStock,
             i.Unit AS unit,
             i.Unit_Cost AS unitCost,
+            i.Purchase_Date AS purchaseDate,
             i.Shelf_Life_Days AS shelfLifeDays,
             i.Expiration_Date AS expirationDate,
             i.Status AS status,
             i.Item_Type AS itemType,
             i.Par_Level AS parLevel,
-            i.Reorder_Point AS reorderPoint
+            i.Reorder_Point AS reorderPoint,
+            i.Low_Stock_Threshold AS lowStockThreshold,
+            i.Expiring_Soon_Days AS expiringSoonDays
        FROM Item i
        JOIN Category c ON c.Category_ID = i.Category_ID
       WHERE i.Is_Deleted = 0
@@ -93,8 +97,8 @@ export const createItem = asyncHandler(async (req, res) => {
 
   await pool.query(
     `INSERT INTO Item
-      (Item_ID, Item_Name, Category_ID, Quantity_in_Stock, Unit, Unit_Cost, Shelf_Life_Days, Expiration_Date, Status, Item_Type, Par_Level, Reorder_Point)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (Item_ID, Item_Name, Category_ID, Quantity_in_Stock, Unit, Unit_Cost, Purchase_Date, Low_Stock_Threshold, Expiring_Soon_Days, Shelf_Life_Days, Expiration_Date, Status, Item_Type, Par_Level, Reorder_Point)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       itemId,
       payload.itemName,
@@ -102,6 +106,9 @@ export const createItem = asyncHandler(async (req, res) => {
       payload.quantityInStock,
       payload.unit,
       payload.unitCost,
+      payload.purchaseDate || null,
+      payload.lowStockThreshold ?? null,
+      payload.expiringSoonDays ?? null,
       payload.shelfLifeDays,
       payload.expirationDate || null,
       payload.status,
@@ -119,12 +126,15 @@ export const createItem = asyncHandler(async (req, res) => {
             i.Quantity_in_Stock AS quantityInStock,
             i.Unit AS unit,
             i.Unit_Cost AS unitCost,
+            i.Purchase_Date AS purchaseDate,
             i.Shelf_Life_Days AS shelfLifeDays,
             i.Expiration_Date AS expirationDate,
             i.Status AS status,
             i.Item_Type AS itemType,
             i.Par_Level AS parLevel,
-            i.Reorder_Point AS reorderPoint
+            i.Reorder_Point AS reorderPoint,
+            i.Low_Stock_Threshold AS lowStockThreshold,
+            i.Expiring_Soon_Days AS expiringSoonDays
        FROM Item i
        JOIN Category c ON c.Category_ID = i.Category_ID
       WHERE i.Item_ID = ? AND i.Is_Deleted = 0`,
@@ -147,12 +157,15 @@ export const updateItem = asyncHandler(async (req, res) => {
     quantityInStock: 'Quantity_in_Stock',
     unit: 'Unit',
     unitCost: 'Unit_Cost',
+    purchaseDate: 'Purchase_Date',
     shelfLifeDays: 'Shelf_Life_Days',
     expirationDate: 'Expiration_Date',
     status: 'Status',
     itemType: 'Item_Type',
     parLevel: 'Par_Level',
-    reorderPoint: 'Reorder_Point'
+    reorderPoint: 'Reorder_Point',
+    lowStockThreshold: 'Low_Stock_Threshold',
+    expiringSoonDays: 'Expiring_Soon_Days'
   }
 
   Object.entries(payload).forEach(([key, value]) => {
@@ -186,12 +199,15 @@ export const updateItem = asyncHandler(async (req, res) => {
             i.Quantity_in_Stock AS quantityInStock,
             i.Unit AS unit,
             i.Unit_Cost AS unitCost,
+            i.Purchase_Date AS purchaseDate,
             i.Shelf_Life_Days AS shelfLifeDays,
             i.Expiration_Date AS expirationDate,
             i.Status AS status,
             i.Item_Type AS itemType,
             i.Par_Level AS parLevel,
-            i.Reorder_Point AS reorderPoint
+            i.Reorder_Point AS reorderPoint,
+            i.Low_Stock_Threshold AS lowStockThreshold,
+            i.Expiring_Soon_Days AS expiringSoonDays
        FROM Item i
        JOIN Category c ON c.Category_ID = i.Category_ID
       WHERE i.Item_ID = ? AND i.Is_Deleted = 0`,
@@ -249,6 +265,7 @@ export const logItemUsage = asyncHandler(async (req, res) => {
               i.Quantity_in_Stock AS quantityInStock,
               i.Unit AS unit,
               i.Unit_Cost AS unitCost,
+            i.Purchase_Date AS purchaseDate,
               i.Shelf_Life_Days AS shelfLifeDays,
               i.Expiration_Date AS expirationDate,
               i.Status AS status,
@@ -310,12 +327,15 @@ export const listDeletedItems = asyncHandler(async (req, res) => {
             i.Quantity_in_Stock AS quantityInStock,
             i.Unit AS unit,
             i.Unit_Cost AS unitCost,
+            i.Purchase_Date AS purchaseDate,
             i.Shelf_Life_Days AS shelfLifeDays,
             i.Expiration_Date AS expirationDate,
             i.Status AS status,
             i.Item_Type AS itemType,
             i.Par_Level AS parLevel,
             i.Reorder_Point AS reorderPoint,
+            i.Low_Stock_Threshold AS lowStockThreshold,
+            i.Expiring_Soon_Days AS expiringSoonDays,
             i.Deleted_At AS deletedAt
        FROM Item i
        JOIN Category c ON c.Category_ID = i.Category_ID
@@ -350,12 +370,15 @@ export const restoreItem = asyncHandler(async (req, res) => {
             i.Quantity_in_Stock AS quantityInStock,
             i.Unit AS unit,
             i.Unit_Cost AS unitCost,
+            i.Purchase_Date AS purchaseDate,
             i.Shelf_Life_Days AS shelfLifeDays,
             i.Expiration_Date AS expirationDate,
             i.Status AS status,
             i.Item_Type AS itemType,
             i.Par_Level AS parLevel,
-            i.Reorder_Point AS reorderPoint
+            i.Reorder_Point AS reorderPoint,
+            i.Low_Stock_Threshold AS lowStockThreshold,
+            i.Expiring_Soon_Days AS expiringSoonDays
        FROM Item i
        JOIN Category c ON c.Category_ID = i.Category_ID
       WHERE i.Item_ID = ?`,

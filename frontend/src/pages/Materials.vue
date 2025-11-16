@@ -58,6 +58,12 @@
         min="0" 
         :placeholder="inventoryType === 'MATERIAL' ? 'Shelf Life (days, optional)' : 'Shelf Life (days)'"
       />
+
+      <input
+        v-model="form.purchaseDate"
+        type="date"
+        placeholder="Purchase date"
+      />
       
       <input 
         v-if="inventoryType === 'MATERIAL'" 
@@ -71,6 +77,19 @@
         <option value="OUT_OF_STOCK">Out of Stock</option>
       </select>
 
+      <input
+        v-model.number="form.lowStockThreshold"
+        type="number"
+        min="0"
+        placeholder="Low Stock Threshold (optional)"
+      />
+
+      <input
+        v-model.number="form.expiringSoonDays"
+        type="number"
+        min="0"
+        placeholder="Expiring Soon Days (optional)"
+      />
       <div class="button-group">
         <button type="submit" :disabled="isSubmitting">
           {{ editingItemId ? 
@@ -195,6 +214,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useInventoryStore } from '../stores/inventoryStore'
 import { useRoute, useRouter } from 'vue-router'
+import { apiClient } from '../services/apiClient'
 
 const inventoryStore = useInventoryStore()
 const route = useRoute()
@@ -246,9 +266,12 @@ const form = ref({
   unit: UNIT_OPTIONS[0].value,
   unitCost: null,
   shelfLifeDays: null,
+  purchaseDate: '',
   expirationDate: '',
   status: 'AVAILABLE',
-  itemType: 'MATERIAL'
+  itemType: 'MATERIAL',
+  lowStockThreshold: null,
+  expiringSoonDays: null
 })
 
 const usageForm = ref({
@@ -262,6 +285,8 @@ const usageStatus = ref({
   type: '',
   message: ''
 })
+const globalSettings = ref(null)
+const settingsLoading = ref(false)
 
 // Computed properties
 const currentInventoryType = computed(() => inventoryType.value)
@@ -288,6 +313,12 @@ const filteredItems = computed(() => {
 })
 
 const materialOptions = computed(() => inventoryStore.materials)
+const globalLowStockLabel = computed(() =>
+  globalSettings.value?.lowStockThreshold != null ? globalSettings.value.lowStockThreshold : 'default'
+)
+const globalExpiringLabel = computed(() =>
+  globalSettings.value?.expiringSoonDays != null ? globalSettings.value.expiringSoonDays : 'default'
+)
 
 // Methods
 const switchInventoryType = (type) => {
@@ -320,6 +351,15 @@ const handleSubmit = async () => {
       shelfLifeDays: form.value.shelfLifeDays ?? null
     }
     payload.unit = payload.unit || UNIT_OPTIONS[0].value
+    payload.purchaseDate = payload.purchaseDate || null
+    payload.lowStockThreshold =
+      payload.lowStockThreshold === '' || payload.lowStockThreshold == null
+        ? null
+        : payload.lowStockThreshold
+    payload.expiringSoonDays =
+      payload.expiringSoonDays === '' || payload.expiringSoonDays == null
+        ? null
+        : payload.expiringSoonDays
     payload.status = payload.status || 'AVAILABLE'
     payload.itemType = payload.itemType || inventoryType.value
 
@@ -345,9 +385,12 @@ const startEdit = (item) => {
     unit: item.unit ?? UNIT_OPTIONS[0].value,
     unitCost: item.unitCost,
     shelfLifeDays: item.shelfLifeDays,
+    purchaseDate: formatDateInput(item.purchaseDate),
     expirationDate: formatDateInput(item.expirationDate),
     status: item.status || 'AVAILABLE',
-    itemType: item.itemType || (inventoryType.value === 'UTENSIL' ? 'UTENSIL' : 'MATERIAL')
+    itemType: item.itemType || (inventoryType.value === 'UTENSIL' ? 'UTENSIL' : 'MATERIAL'),
+    lowStockThreshold: item.lowStockThreshold ?? null,
+    expiringSoonDays: item.expiringSoonDays ?? null
   }
 }
 
@@ -359,9 +402,12 @@ const resetForm = () => {
     unit: UNIT_OPTIONS[0].value,
     unitCost: null,
     shelfLifeDays: null,
+    purchaseDate: '',
     expirationDate: '',
     status: 'AVAILABLE',
-    itemType: inventoryType.value === 'UTENSIL' ? 'UTENSIL' : 'MATERIAL'
+    itemType: inventoryType.value === 'UTENSIL' ? 'UTENSIL' : 'MATERIAL',
+    lowStockThreshold: null,
+    expiringSoonDays: null
   }
   editingItemId.value = null
 }
@@ -413,6 +459,17 @@ const handleUsageSubmit = async () => {
     }
   } finally {
     isLoggingUsage.value = false
+  }
+}
+
+const loadGlobalSettings = async () => {
+  try {
+    settingsLoading.value = true
+    globalSettings.value = await apiClient.getInventorySettings()
+  } catch (error) {
+    console.error(error)
+  } finally {
+    settingsLoading.value = false
   }
 }
 
@@ -492,6 +549,7 @@ onMounted(() => {
     inventoryStore.fetchSummary().catch(error => console.error(error))
   }
   resetForm()
+  loadGlobalSettings()
 })
 
 // Also watch for route changes

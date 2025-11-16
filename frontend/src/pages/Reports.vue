@@ -30,9 +30,37 @@
     </div>
     <div v-else class="status-message">Loading report data...</div>
 
+    <section class="settings-card" v-if="inventorySettings">
+      <h3>Report Settings</h3>
+      <form class="settings-form" @submit.prevent="saveInventorySettings">
+        <label>
+          Low Stock Threshold (qty)
+          <input
+            type="number"
+            min="1"
+            v-model.number="settingsForm.lowStockThreshold"
+            required
+          />
+        </label>
+        <label>
+          Expiring Soon (days)
+          <input
+            type="number"
+            min="1"
+            v-model.number="settingsForm.expiringSoonDays"
+            required
+          />
+        </label>
+        <button type="submit" :disabled="savingSettings">
+          {{ savingSettings ? 'Saving...' : 'Save Settings' }}
+        </button>
+      </form>
+      <p v-if="settingsStatus" class="settings-status">{{ settingsStatus }}</p>
+    </section>
+
     <!-- Low Stock Table -->
     <div class="table-container" v-if="lowStock.length">
-      <h3>Low Stock Items (qty <= 10)</h3>
+      <h3>Low Stock Items (qty <= {{ lowStockThresholdLabel }})</h3>
       <table>
         <thead>
           <tr>
@@ -44,7 +72,7 @@
         <tbody>
           <tr v-for="item in lowStock" :key="item.itemId">
             <td>{{ item.itemName }}</td>
-            <td>{{ item.quantityInStock }}</td>
+            <td>{{ formatQuantityWithUnit(item.quantityInStock, item.unit) }}</td>
             <td>{{ item.categoryName }}</td>
           </tr>
         </tbody>
@@ -53,20 +81,22 @@
 
     <!-- Expiring Soon Table -->
     <div class="table-container" v-if="expiringSoon.length">
-      <h3>Expiring Soon (next 7 days)</h3>
+      <h3>Expiring Soon (next {{ expiringSoonDaysLabel }} days)</h3>
       <table>
         <thead>
           <tr>
             <th>Material</th>
             <th>Qty</th>
+            <th>Purchase Date</th>
             <th>Expiration Date</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="item in expiringSoon" :key="item.itemId">
             <td>{{ item.itemName }}</td>
-            <td>{{ item.quantityInStock }}</td>
-            <td>{{ item.expirationDate }}</td>
+            <td>{{ formatQuantityWithUnit(item.quantityInStock, item.unit) }}</td>
+            <td>{{ formatDate(item.purchaseDate) }}</td>
+            <td>{{ formatDate(item.expirationDate) }}</td>
           </tr>
         </tbody>
       </table>
@@ -87,8 +117,8 @@
         </thead>
         <tbody>
           <tr v-for="item in deletedItems" :key="item.itemId">
-            <td>{{ item.itemName }}</td>
-            <td>{{ item.quantityInStock }}</td>
+           <td>{{ item.itemName }}</td>
+            <td>{{ formatQuantityWithUnit(item.quantityInStock, item.unit) }}</td>
             <td>{{ item.categoryName }}</td>
             <td>{{ formatDate(item.deletedAt) }}</td>
             <td>
@@ -170,6 +200,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 
+import { apiClient } from '../services/apiClient'
 import { useInventoryStore } from '../stores/inventoryStore'
 
 const inventoryStore = useInventoryStore()
@@ -181,6 +212,13 @@ const reportFilters = reactive({
 })
 
 const customReportError = ref('')
+const inventorySettings = ref(null)
+const settingsForm = reactive({
+  lowStockThreshold: '',
+  expiringSoonDays: ''
+})
+const settingsStatus = ref('')
+const savingSettings = ref(false)
 
 const today = new Date()
 const defaultEndDate = today.toISOString().slice(0, 10)
@@ -201,6 +239,7 @@ onMounted(() => {
   }
 
   runCustomReport()
+  loadInventorySettings()
 })
 
 const loadingSummary = computed(() => inventoryStore.loading.summary)
@@ -213,12 +252,44 @@ const servingLowStock = computed(() => inventoryStore.lowStockServing)
 const deletedItems = computed(() => inventoryStore.deletedItems)
 const customReport = computed(() => inventoryStore.customReport)
 const loadingCustomReport = computed(() => inventoryStore.loading.customReport)
+const lowStockThresholdLabel = computed(() => inventorySettings.value?.lowStockThreshold ?? '-')
+const expiringSoonDaysLabel = computed(() => inventorySettings.value?.expiringSoonDays ?? '-')
 
 const handleRestore = async item => {
   try {
     await inventoryStore.restoreItem(item.itemId)
   } catch (error) {
     alert(error.message ?? 'Unable to restore item.')
+  }
+}
+
+const loadInventorySettings = async () => {
+  try {
+    const settings = await apiClient.getInventorySettings()
+    inventorySettings.value = settings
+    settingsForm.lowStockThreshold = settings.lowStockThreshold
+    settingsForm.expiringSoonDays = settings.expiringSoonDays
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+const saveInventorySettings = async () => {
+  try {
+    savingSettings.value = true
+    settingsStatus.value = ''
+    const payload = {
+      lowStockThreshold: Number(settingsForm.lowStockThreshold),
+      expiringSoonDays: Number(settingsForm.expiringSoonDays)
+    }
+    const updated = await apiClient.updateInventorySettings(payload)
+    inventorySettings.value = updated
+    settingsStatus.value = 'Settings saved'
+    await inventoryStore.fetchSummary()
+  } catch (error) {
+    settingsStatus.value = error.message ?? 'Unable to save settings'
+  } finally {
+    savingSettings.value = false
   }
 }
 
@@ -250,6 +321,13 @@ const periodOptions = [
 const formatDate = dateString => {
   if (!dateString) return '-'
   return dateString.slice(0, 10)
+}
+
+const formatQuantityWithUnit = (qty, unit) => {
+  if (qty === undefined || qty === null) return '-'
+  if (!unit) return qty
+  const singularOrPlural = Number(qty) === 1 ? unit : unit
+  return `${qty} ${singularOrPlural}`
 }
 
 const formatCurrency = value =>
@@ -344,6 +422,62 @@ td {
 
 .restore-button:hover {
   background: #1d4ed8;
+}
+
+.settings-card {
+  background-color: #fff;
+  border-radius: 16px;
+  padding: 1.5rem;
+  max-width: 900px;
+  margin: 1rem auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.settings-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  align-items: end;
+}
+
+.settings-form label {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+  color: #143029;
+}
+
+.settings-form input {
+  margin-top: 0.35rem;
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+}
+
+.settings-form button {
+  background-color: #2563eb;
+  color: #fff;
+  border: none;
+  padding: 0.65rem 1.25rem;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.settings-form button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.settings-form button:not([disabled]):hover {
+  background-color: #1d4ed8;
+}
+
+.settings-status {
+  margin-top: 0.75rem;
+  font-weight: 600;
+  color: #065f46;
 }
 
 .custom-report-card {

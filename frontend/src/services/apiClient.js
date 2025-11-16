@@ -71,6 +71,11 @@ export const apiClient = {
     return request(`/reports/summary?${searchParams.toString()}`)
   },
 
+  // Settings
+  getInventorySettings: () => request('/settings/inventory'),
+  updateInventorySettings: payload =>
+    request('/settings/inventory', { method: 'PUT', body: payload }),
+
   // Users
   getUsers: () => request('/users'),
 
