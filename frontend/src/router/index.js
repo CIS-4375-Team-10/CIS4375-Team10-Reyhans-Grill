@@ -1,19 +1,26 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Login from '../pages/Login.vue'
 import Dashboard from '../pages/Dashboard.vue'
-import Materials from '../pages/Materials.vue'
-import Utensils from '../pages/Utensils.vue'
+import Materials from '../pages/Materials.vue' // This imports your combined component
 import Reports from '../pages/Reports.vue'
-import Order from '../pages/Order.vue'
 
 const routes = [
   { path: '/login', component: Login, name: 'login' },
   { path: '/dashboard', component: Dashboard, name: 'dashboard' },
-  { path: '/materials', component: Materials, name: 'materials' },
-  { path: '/utensils', component: Utensils, name: 'utensils' },
+  { 
+    path: '/materials', 
+    component: Materials, 
+    name: 'materials',
+    meta: { defaultType: 'MATERIAL' }
+  },
+  { 
+    path: '/utensils', 
+    component: Materials, // Use the SAME Materials component here
+    name: 'utensils',
+    meta: { defaultType: 'UTENSIL' }
+  },
   { path: '/reports', component: Reports, name: 'reports' },
-  { path: '/orders', component: Order, name: 'order' }, 
-  { path: '/', component: Login } // root path
+  { path: '/', redirect: '/dashboard' } // Redirect root to dashboard
 ]
 
 const router = createRouter({

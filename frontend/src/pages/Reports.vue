@@ -186,7 +186,7 @@ const formatDate = dateString => {
 }
 
 .secondary-card {
-  background-color: #8B2E1D;
+  background-color: #2f7057;;
 }
 
 .table-container {

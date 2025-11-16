@@ -102,7 +102,7 @@ const pieData = computed(() => {
   }
 })
 
-const chartColors = ['#8B2E1D', '#D97706', '#FBBF24', '#FEEBC8', '#FDBA74', '#C2410C']
+const chartColors = ['#2f7057', '#3a8263', '#45946f', '#50a67b', '#5bb887', '#66ca93']
 const fallbackChartData = {
   labels: ['Meat', 'Vegetables', 'Utensils', 'Other'],
   datasets: [
@@ -124,7 +124,7 @@ const fallbackChartData = {
 
 .metrics-title {
   font-size: 1.6rem;
-  color: #8B2E1D;
+  color: #2f7057;;
   text-align: center;
   font-weight: 700;
   margin-bottom: 1.5rem;
@@ -160,14 +160,14 @@ const fallbackChartData = {
 .info h3 {
   margin: 0;
   font-size: 1.2rem;
-  color: #8B2E1D;
+  color: #2f7057;
 }
 
 .info p {
   margin: 0.25rem 0 0 0;
   font-size: 1.2rem;
   font-weight: 500;
-  color: #3F2E2E;
+  color: #2f7057;;
 }
 
 .chart-container {
@@ -183,7 +183,7 @@ const fallbackChartData = {
 }
 
 .chart-container h2 {
-  color: #8B2E1D;
+  color: #2f7057;;
   margin: 0 0 1rem 0;
   font-size: 1.4rem;
   text-align: center;
