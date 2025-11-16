@@ -28,6 +28,7 @@ export const useInventoryStore = defineStore('inventory', {
     purchases: [],
     usageRecords: [],
     reports: [],
+    customReport: null,
     categories: [],
     users: [],
     summary: null,
@@ -39,7 +40,8 @@ export const useInventoryStore = defineStore('inventory', {
       reports: false,
       categories: false,
       summary: false,
-      deletedItems: false
+      deletedItems: false,
+      customReport: false
     },
     lastError: null,
     initialized: false
@@ -70,9 +72,24 @@ export const useInventoryStore = defineStore('inventory', {
         : UTENSIL_CATEGORY_DEFAULTS
     },
     totalItemsCount: state => state.summary?.totalItems ?? state.items.length,
-    totalQuantity: state =>
-      state.summary?.totalQuantity ??
-      state.items.reduce((sum, item) => sum + Number(item.quantityInStock ?? 0), 0),
+    totalQuantity: state => {
+      const deletedQuantity = state.deletedItems.reduce(
+        (sum, item) => sum + Number(item.quantityInStock ?? 0),
+        0
+      )
+
+      const itemsQuantity = state.items.reduce(
+        (sum, item) => sum + Number(item.quantityInStock ?? 0),
+        0
+      )
+
+      if (state.items.length) {
+        return Math.max(itemsQuantity - deletedQuantity, 0)
+      }
+
+      const summaryQuantity = state.summary?.totalQuantity ?? 0
+      return Math.max(summaryQuantity - deletedQuantity, 0)
+    },
     utensilsInUse: state =>
       state.summary?.utensilsInUse ??
       state.utensils.reduce((sum, item) => sum + Number(item.quantityInStock ?? 0), 0),
@@ -225,6 +242,19 @@ export const useInventoryStore = defineStore('inventory', {
         throw error
       } finally {
         this.loading.reports = false
+      }
+    },
+    async fetchCustomReport(filters) {
+      this.loading.customReport = true
+      try {
+        const data = await apiClient.getReportSummary(filters)
+        this.customReport = data
+        return data
+      } catch (error) {
+        this.setError(error.message ?? 'Unable to load custom report')
+        throw error
+      } finally {
+        this.loading.customReport = false
       }
     },
     async fetchUsage() {

@@ -100,15 +100,94 @@
         </tbody>
       </table>
     </div>
+
+    <section class="custom-report-card">
+      <h3>Custom Inventory & Expense Report</h3>
+      <p class="section-subtitle">
+        Choose a date range and grouping period to pull inventory usage and expense totals.
+      </p>
+      <form class="custom-report-form" @submit.prevent="runCustomReport">
+        <label>
+          Start Date
+          <input type="date" v-model="reportFilters.startDate" />
+        </label>
+        <label>
+          End Date
+          <input type="date" v-model="reportFilters.endDate" />
+        </label>
+        <label>
+          Period
+          <select v-model="reportFilters.period">
+            <option v-for="option in periodOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </select>
+        </label>
+        <button class="run-report-btn" type="submit" :disabled="loadingCustomReport">
+          {{ loadingCustomReport ? 'Loading...' : 'Run Report' }}
+        </button>
+      </form>
+      <p v-if="customReportError" class="error-message">{{ customReportError }}</p>
+    </section>
+
+    <div class="table-container" v-if="customReport">
+      <h3>Report Results</h3>
+      <div v-if="customReport.points.length" class="cards compact-cards">
+        <div class="card">
+          <h4>Total Items Used</h4>
+          <p>{{ customReport.totals.totalUsedItems }}</p>
+        </div>
+        <div class="card">
+          <h4>Total Spend</h4>
+          <p>{{ formatCurrency(customReport.totals.totalSpent) }}</p>
+        </div>
+      </div>
+      <table v-if="customReport.points.length">
+        <thead>
+          <tr>
+            <th>Period</th>
+            <th>Start</th>
+            <th>End</th>
+            <th>Items Used</th>
+            <th>Total Spent</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="point in customReport.points" :key="point.bucket">
+            <td>{{ point.label }}</td>
+            <td>{{ point.rangeStart }}</td>
+            <td>{{ point.rangeEnd }}</td>
+            <td>{{ point.totalUsedItems }}</td>
+            <td>{{ formatCurrency(point.totalSpent) }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div v-else class="status-message">No results for the selected range yet.</div>
+    </div>
   </main>
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 
 import { useInventoryStore } from '../stores/inventoryStore'
 
 const inventoryStore = useInventoryStore()
+
+const reportFilters = reactive({
+  startDate: '',
+  endDate: '',
+  period: 'day'
+})
+
+const customReportError = ref('')
+
+const today = new Date()
+const defaultEndDate = today.toISOString().slice(0, 10)
+const defaultStart = new Date(today)
+defaultStart.setDate(defaultStart.getDate() - 6)
+reportFilters.startDate = defaultStart.toISOString().slice(0, 10)
+reportFilters.endDate = defaultEndDate
 
 onMounted(() => {
   if (!inventoryStore.items.length) {
@@ -120,6 +199,8 @@ onMounted(() => {
   if (!inventoryStore.deletedItems.length) {
     inventoryStore.fetchDeletedItems().catch(error => console.error(error))
   }
+
+  runCustomReport()
 })
 
 const loadingSummary = computed(() => inventoryStore.loading.summary)
@@ -130,6 +211,8 @@ const expiringSoon = computed(() => inventoryStore.expiringSoonMaterials)
 const cutleryLowStock = computed(() => inventoryStore.lowStockCutlery)
 const servingLowStock = computed(() => inventoryStore.lowStockServing)
 const deletedItems = computed(() => inventoryStore.deletedItems)
+const customReport = computed(() => inventoryStore.customReport)
+const loadingCustomReport = computed(() => inventoryStore.loading.customReport)
 
 const handleRestore = async item => {
   try {
@@ -139,10 +222,38 @@ const handleRestore = async item => {
   }
 }
 
+const runCustomReport = async () => {
+  customReportError.value = ''
+  try {
+    if (!reportFilters.startDate || !reportFilters.endDate) {
+      throw new Error('Select both a start and end date.')
+    }
+    if (reportFilters.startDate > reportFilters.endDate) {
+      throw new Error('Start date must be before end date.')
+    }
+    await inventoryStore.fetchCustomReport({
+      startDate: reportFilters.startDate,
+      endDate: reportFilters.endDate,
+      period: reportFilters.period
+    })
+  } catch (error) {
+    customReportError.value = error.message ?? 'Unable to load custom report.'
+  }
+}
+
+const periodOptions = [
+  { label: 'Daily', value: 'day' },
+  { label: 'Weekly', value: 'week' },
+  { label: 'Monthly', value: 'month' }
+]
+
 const formatDate = dateString => {
   if (!dateString) return '-'
   return dateString.slice(0, 10)
 }
+
+const formatCurrency = value =>
+  Number(value ?? 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 </script>
 
 <style scoped>
@@ -233,5 +344,73 @@ td {
 
 .restore-button:hover {
   background: #1d4ed8;
+}
+
+.custom-report-card {
+  background-color: #fff;
+  border-radius: 16px;
+  padding: 1.5rem;
+  max-width: 900px;
+  margin: 2rem auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.section-subtitle {
+  margin: 0.5rem 0 1rem 0;
+  color: #4b5563;
+}
+
+.custom-report-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  align-items: end;
+}
+
+.custom-report-form label {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+  color: #143029;
+}
+
+.custom-report-form input,
+.custom-report-form select {
+  margin-top: 0.35rem;
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 0.95rem;
+}
+
+.run-report-btn {
+  background-color: #2563eb;
+  color: #fff;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.run-report-btn[disabled] {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.run-report-btn:not([disabled]):hover {
+  background-color: #1d4ed8;
+}
+
+.error-message {
+  color: #b91c1c;
+  margin-top: 0.75rem;
+  font-weight: 600;
+}
+
+.compact-cards {
+  justify-content: flex-start;
+  margin-bottom: 1rem;
 }
 </style>

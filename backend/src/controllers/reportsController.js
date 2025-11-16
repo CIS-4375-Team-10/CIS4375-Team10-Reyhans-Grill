@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { getPool } from '../db/pool.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
+import { HttpError } from '../utils/httpError.js'
 import { generateId } from '../utils/id.js'
 
 const pool = getPool()
@@ -92,3 +93,76 @@ export const getMonthlyExpenses = asyncHandler(async (req, res) => {
     ]
   })
 })
+
+const rangeQuerySchema = z.object({
+  startDate: dateString,
+  endDate: dateString,
+  period: z.enum(['day', 'week', 'month']).default('day')
+})
+
+const bucketExpressions = {
+  day: 'DATE(r.Report_Date)',
+  week: 'YEARWEEK(r.Report_Date, 3)',
+  month: "DATE_FORMAT(r.Report_Date, '%Y-%m')"
+}
+
+export const getCustomReportSummary = asyncHandler(async (req, res) => {
+  const { startDate, endDate, period } = rangeQuerySchema.parse(req.query)
+
+  if (startDate > endDate) {
+    throw new HttpError(400, 'Start date must be before end date')
+  }
+
+  const [rows] = await pool.query(
+    `
+    SELECT ${bucketExpressions[period]} AS bucket,
+           DATE_FORMAT(MIN(r.Report_Date), '%Y-%m-%d') AS rangeStart,
+           DATE_FORMAT(MAX(r.Report_Date), '%Y-%m-%d') AS rangeEnd,
+           SUM(r.Total_Spent) AS totalSpent,
+           SUM(r.Total_Used_Items) AS totalUsedItems
+      FROM Report r
+     WHERE r.Report_Date BETWEEN ? AND ?
+     GROUP BY bucket
+     ORDER BY bucket
+    `,
+    [startDate, endDate]
+  )
+
+  const points = rows.map(row => ({
+    bucket: row.bucket,
+    label: formatLabel(period, row.rangeStart, row.rangeEnd),
+    rangeStart: row.rangeStart,
+    rangeEnd: row.rangeEnd,
+    totalSpent: Number(row.totalSpent ?? 0),
+    totalUsedItems: Number(row.totalUsedItems ?? 0)
+  }))
+
+  const totals = points.reduce(
+    (acc, point) => {
+      acc.totalSpent += point.totalSpent
+      acc.totalUsedItems += point.totalUsedItems
+      return acc
+    },
+    { totalSpent: 0, totalUsedItems: 0 }
+  )
+
+  res.json({
+    period,
+    startDate,
+    endDate,
+    points,
+    totals
+  })
+})
+
+const formatLabel = (period, start, end) => {
+  if (period === 'day') {
+    return start
+  }
+
+  if (period === 'month') {
+    return start?.slice(0, 7) ?? ''
+  }
+
+  return `${start} - ${end}`
+}

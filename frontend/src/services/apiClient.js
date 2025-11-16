@@ -62,6 +62,13 @@ export const apiClient = {
   // Reports
   getReports: () => request('/reports'),
   createReport: payload => request('/reports', { method: 'POST', body: payload }),
+  getReportSummary: params => {
+    const searchParams = new URLSearchParams()
+    if (params?.startDate) searchParams.append('startDate', params.startDate)
+    if (params?.endDate) searchParams.append('endDate', params.endDate)
+    if (params?.period) searchParams.append('period', params.period)
+    return request(`/reports/summary?${searchParams.toString()}`)
+  },
 
   // Users
   getUsers: () => request('/users'),
