@@ -46,17 +46,30 @@
       </div>
     </div>
 
-    <div class="chart-container">
-      <h2>Inventory Distribution</h2>
-      <PieChart :chart-data="pieData" />
+    <!-- Charts Section -->
+    <div class="charts-grid">
+      <!-- Pie Chart -->
+      <div class="chart-wrapper">
+        <div class="chart-container">
+          <h2>Inventory Distribution</h2>
+          <div class="chart-inner">
+            <PieChart :chart-data="pieData" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Bar Chart with Time Filter -->
+      <div class="chart-wrapper">
+        <BarGraph />
+      </div>
     </div>
   </main>
 </template>
 
 <script setup>
 import { computed, onMounted } from 'vue'
-
 import PieChart from '../components/PieChart.vue'
+import BarGraph from '../components/BarGraph.vue'
 import { useInventoryStore } from '../stores/inventoryStore'
 
 const inventoryStore = useInventoryStore()
@@ -117,14 +130,16 @@ const fallbackChartData = {
 
 <style scoped>
 .dashboard-container {
-  padding: 2rem;
+  padding: 1.5rem;
   background-color: #FFF7ED;
   min-height: 100vh;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
 .metrics-title {
   font-size: 1.6rem;
-  color: #2f7057;;
+  color: #2f7057;
   text-align: center;
   font-weight: 700;
   margin-bottom: 1.5rem;
@@ -132,65 +147,139 @@ const fallbackChartData = {
 
 .cards-container {
   display: flex;
-  gap: 1.5rem;
+  gap: 1rem;
   flex-wrap: wrap;
   justify-content: center;
+  margin-bottom: 2rem;
 }
 
 .card {
   background-color: #fff;
-  flex: 1 1 200px;
+  flex: 1 1 180px;
   display: flex;
   align-items: center;
-  padding: 1rem 1.5rem;
-  border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 1rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: transform 0.2s;
+  min-width: 160px;
 }
 
 .card:hover {
-  transform: scale(1.03);
+  transform: scale(1.02);
 }
 
 .icon {
-  font-size: 2.5rem;
-  margin-right: 1rem;
+  font-size: 2rem;
+  margin-right: 0.75rem;
 }
 
 .info h3 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1rem;
   color: #2f7057;
 }
 
 .info p {
   margin: 0.25rem 0 0 0;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   font-weight: 500;
-  color: #2f7057;;
+  color: #2f7057;
+}
+
+/* Charts Grid Layout */
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.chart-wrapper {
+  display: flex;
+  flex-direction: column;
 }
 
 .chart-container {
   background-color: #fff;
-  padding: 2rem 2rem;
+  padding: 1.5rem;
   border-radius: 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  margin-top: 1.5rem;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  min-height: 400px;
+  height: 100%;
+  min-height: 350px;
 }
 
 .chart-container h2 {
-  color: #2f7057;;
+  color: #2f7057;
   margin: 0 0 1rem 0;
-  font-size: 1.4rem;
+  font-size: 1.3rem;
   text-align: center;
 }
 
-.chart-container canvas {
-  max-width: 100% !important;
-  max-height: 300px;
+.chart-inner {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 250px;
+}
+
+/* Responsive design */
+@media (max-width: 1024px) {
+  .dashboard-container {
+    padding: 1rem;
+  }
+  
+  .charts-grid {
+    gap: 1rem;
+  }
+  
+  .chart-container {
+    padding: 1rem;
+    min-height: 320px;
+  }
+}
+
+@media (max-width: 768px) {
+  .charts-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .card {
+    flex: 1 1 140px;
+    min-width: 140px;
+  }
+  
+  .icon {
+    font-size: 1.8rem;
+  }
+  
+  .info h3 {
+    font-size: 0.9rem;
+  }
+  
+  .info p {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .cards-container {
+    gap: 0.75rem;
+  }
+  
+  .card {
+    flex: 1 1 120px;
+    min-width: 120px;
+    padding: 0.75rem;
+  }
+  
+  .icon {
+    font-size: 1.5rem;
+    margin-right: 0.5rem;
+  }
 }
 </style>
