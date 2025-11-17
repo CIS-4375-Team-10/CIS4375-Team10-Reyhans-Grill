@@ -11,6 +11,7 @@ import settingsRoutes from './settingsRoutes.js'
 import inventoryRoutes from './inventoryRoutes.js'
 import materialUsageRoutes from './materialUsageRoutes.js'
 import exportRoutes from './exportRoutes.js'
+import financeRoutes from './financeRoutes.js'
 
 const router = Router()
 
@@ -31,5 +32,6 @@ router.use('/dashboard', dashboardRoutes)
 router.use('/settings', settingsRoutes)
 router.use('/inventory', inventoryRoutes)
 router.use('/exports', exportRoutes)
+router.use('/finance', financeRoutes)
 
 export default router

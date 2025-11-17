@@ -3,6 +3,7 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:400
   ''
 )
 
+const SESSION_TOKEN_KEY = 'sessionToken'
 const buildQueryString = params => {
   const searchParams = new URLSearchParams()
   Object.entries(params ?? {}).forEach(([key, value]) => {
@@ -12,6 +13,18 @@ const buildQueryString = params => {
   })
   const query = searchParams.toString()
   return query ? `?${query}` : ''
+}
+
+const getSessionToken = () => window.localStorage.getItem(SESSION_TOKEN_KEY)
+
+const handleUnauthorized = message => {
+  window.localStorage.removeItem(SESSION_TOKEN_KEY)
+  window.localStorage.removeItem('isAuthenticated')
+  window.dispatchEvent(new Event('authChange'))
+  if (message) {
+    alert(message)
+  }
+  window.location.href = '/login'
 }
 
 const request = async (path, options = {}) => {
@@ -27,6 +40,11 @@ const request = async (path, options = {}) => {
     config.body = JSON.stringify(options.body)
   }
 
+  const sessionToken = getSessionToken()
+  if (sessionToken) {
+    config.headers['X-Session-Token'] = sessionToken
+  }
+
   const response = await fetch(`${API_BASE_URL}${path}`, config)
 
   if (!response.ok) {
@@ -36,6 +54,10 @@ const request = async (path, options = {}) => {
       details = data?.message ?? response.statusText
     } catch (error) {
       details = response.statusText
+    }
+
+    if (response.status === 401) {
+      handleUnauthorized(details || 'Session expired due to inactivity. Please log in again.')
     }
 
     throw new Error(details || 'Request failed')
@@ -52,7 +74,8 @@ const downloadExcel = async (path, params = {}) => {
   const url = `${API_BASE_URL}${path}${buildQueryString(params)}`
   const response = await fetch(url, {
     headers: {
-      Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ...(getSessionToken() ? { 'X-Session-Token': getSessionToken() } : {})
     }
   })
 
@@ -63,6 +86,9 @@ const downloadExcel = async (path, params = {}) => {
       details = data?.message ?? response.statusText
     } catch {
       details = response.statusText
+    }
+    if (response.status === 401) {
+      handleUnauthorized(details || 'Session expired due to inactivity. Please log in again.')
     }
     throw new Error(details || 'Unable to download file')
   }
@@ -134,5 +160,48 @@ export const apiClient = {
     downloadExcel('/exports/inventory/low-stock', params),
   exportExpiringInventory: params =>
     downloadExcel('/exports/inventory/expiring-soon', params),
-  exportExpenseReport: params => downloadExcel('/exports/expenses', params)
+  exportExpenseReport: params => downloadExcel('/exports/expenses', params),
+
+  // Expense tracker
+  getExpenseTracker: params => {
+    const searchParams = new URLSearchParams()
+    if (params?.from) searchParams.append('from', params.from)
+    if (params?.to) searchParams.append('to', params.to)
+    const query = searchParams.toString()
+    return request(`/finance/tracker${query ? `?${query}` : ''}`)
+  },
+  createElectronicIncome: payload =>
+    request('/finance/electronic-income', { method: 'POST', body: payload }),
+  createCashIncome: payload =>
+    request('/finance/cash-income', { method: 'POST', body: payload }),
+  createExpense: payload => request('/finance/expenses', { method: 'POST', body: payload }),
+  importFinanceEntries: ({ type, file }) => {
+    const formData = new FormData()
+    formData.append('type', type)
+    formData.append('file', file)
+    return fetch(`${API_BASE_URL}/finance/import`, {
+      method: 'POST',
+      body: formData,
+      headers: getSessionToken() ? { 'X-Session-Token': getSessionToken() } : undefined
+    }).then(async response => {
+      if (!response.ok) {
+        let details
+        try {
+          const data = await response.json()
+          details = data?.message ?? response.statusText
+        } catch {
+          details = response.statusText
+        }
+        if (response.status === 401) {
+          handleUnauthorized(details || 'Session expired due to inactivity. Please log in again.')
+        }
+        throw new Error(details || 'Unable to import file')
+      }
+      return response.json()
+    })
+  },
+
+  // Auth
+  login: payload => request('/auth/login', { method: 'POST', body: payload }),
+  logout: () => request('/auth/logout', { method: 'POST' })
 }

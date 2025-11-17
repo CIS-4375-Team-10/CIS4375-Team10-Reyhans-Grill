@@ -2,22 +2,30 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import { apiClient } from '../services/apiClient'
+
 const router = useRouter()
 const username = ref('')
 const password = ref('')
 const error = ref('')
+const isSubmitting = ref(false)
 
-function login() {
-  // Use the correct credentials - admin/admin
-  if (username.value === 'admin' && password.value === 'admin') {
-    localStorage.setItem('isAuthenticated', 'true')
-    
-    // Trigger custom event to update navbar in App.vue
+const login = async () => {
+  error.value = ''
+  try {
+    isSubmitting.value = true
+    const response = await apiClient.login({
+      username: username.value,
+      password: password.value
+    })
+    window.localStorage.setItem('isAuthenticated', 'true')
+    window.localStorage.setItem('sessionToken', response.sessionToken)
     window.dispatchEvent(new Event('authChange'))
-    
     router.push('/dashboard')
-  } else {
-    error.value = 'Invalid credentials.';
+  } catch (err) {
+    error.value = err.message ?? 'Unable to log in.'
+  } finally {
+    isSubmitting.value = false
   }
 }
 </script>
@@ -35,7 +43,9 @@ function login() {
         <label>Password:</label>
         <input type="password" v-model="password" required>
       </div>
-      <button type="submit">Login</button>
+      <button type="submit" :disabled="isSubmitting">
+        {{ isSubmitting ? 'Logging in...' : 'Login' }}
+      </button>
       <p v-if="error" class="error">{{ error }}</p>
     </form>
   </div>

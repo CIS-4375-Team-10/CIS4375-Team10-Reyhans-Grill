@@ -142,15 +142,27 @@ watch(
   { immediate: true }
 )
 
+const padNumber = value => String(value).padStart(2, '0')
+
 const formatUnit = unit => {
   if (!unit) return ''
   return unit.charAt(0).toUpperCase() + unit.slice(1)
 }
 
 const formatDisplayDate = value => {
+  if (!value) return '-'
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (match) {
+    const [, year, month, day] = match
+    return `${month}/${day}/${year}`
+  }
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString()
+  return date.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  })
 }
 
 const resetForm = () => {
@@ -181,11 +193,15 @@ const handleSubmit = async () => {
 
   try {
     isSubmitting.value = true
+    const now = new Date()
+    const currentTime = `${padNumber(now.getHours())}:${padNumber(now.getMinutes())}:${padNumber(
+      now.getSeconds()
+    )}`
     const payload = {
       materialId: form.value.materialId,
       quantityUsed: form.value.quantityUsed,
       reason: form.value.reason || undefined,
-      usageDate: form.value.usageDate ? `${form.value.usageDate}T00:00:00` : undefined
+      usageDate: form.value.usageDate ? `${form.value.usageDate} ${currentTime}` : undefined
     }
     await apiClient.createMaterialUsage(payload)
     formSuccess.value = 'Usage logged.'

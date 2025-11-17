@@ -6,7 +6,14 @@ import { HttpError } from '../utils/httpError.js'
 
 const pool = getPool()
 
-const toMySqlDateTime = date => date.toISOString().slice(0, 19).replace('T', ' ')
+const pad2 = value => String(value).padStart(2, '0')
+const formatLocalDateTime = date => {
+  return [
+    date.getFullYear(),
+    pad2(date.getMonth() + 1),
+    pad2(date.getDate())
+  ].join('-') + ` ${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`
+}
 
 const createUsageSchema = z.object({
   materialId: z.string().min(1),
@@ -36,11 +43,14 @@ const querySchema = z.object({
 
 const normalizeUsageDate = value => {
   if (!value) return null
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  const match = value.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2})(?::(\d{2})(?::(\d{2}))?)?)?$/
+  )
   if (!match) {
-    throw new HttpError(400, 'Usage date must be in YYYY-MM-DD format')
+    throw new HttpError(400, 'Usage date must be in YYYY-MM-DD or YYYY-MM-DD HH:mm:ss format')
   }
-  return `${match[1]}-${match[2]}-${match[3]} 00:00:00`
+  const [, year, month, day, hour = '00', minute = '00', second = '00'] = match
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`
 }
 
 export const createMaterialUsage = asyncHandler(async (req, res) => {
@@ -50,11 +60,7 @@ export const createMaterialUsage = asyncHandler(async (req, res) => {
   if (payload.usageDate) {
     usageDate = normalizeUsageDate(payload.usageDate)
   } else {
-    const usageDateObj = new Date()
-    if (Number.isNaN(usageDateObj.getTime())) {
-      throw new HttpError(400, 'Invalid usage date')
-    }
-    usageDate = toMySqlDateTime(usageDateObj)
+    usageDate = formatLocalDateTime(new Date())
   }
 
   const connection = await pool.getConnection()
@@ -103,7 +109,7 @@ export const createMaterialUsage = asyncHandler(async (req, res) => {
 
     const [rows] = await pool.query(
       `SELECT mu.Usage_ID AS usageId,
-              mu.Usage_Date AS usageDate,
+              DATE_FORMAT(mu.Usage_Date, '%Y-%m-%d %H:%i:%s') AS usageDate,
               mu.Quantity_Used AS quantityUsed,
               mu.Reason AS reason,
               i.Item_ID AS materialId,
@@ -144,7 +150,7 @@ export const listMaterialUsage = asyncHandler(async (req, res) => {
 
   const [rows] = await pool.query(
     `SELECT mu.Usage_ID AS usageId,
-            mu.Usage_Date AS usageDate,
+            DATE_FORMAT(mu.Usage_Date, '%Y-%m-%d %H:%i:%s') AS usageDate,
             mu.Quantity_Used AS quantityUsed,
             mu.Reason AS reason,
             i.Item_ID AS materialId,
