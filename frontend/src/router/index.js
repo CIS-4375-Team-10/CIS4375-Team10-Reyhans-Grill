@@ -3,6 +3,7 @@ import Login from '../pages/Login.vue'
 import Dashboard from '../pages/Dashboard.vue'
 import Materials from '../pages/Materials.vue' // This imports your combined component
 import Reports from '../pages/Reports.vue'
+import MaterialsUsed from '../pages/MaterialsUsed.vue'
 
 const routes = [
   { path: '/login', component: Login, name: 'login' },
@@ -20,6 +21,7 @@ const routes = [
     meta: { defaultType: 'UTENSIL' }
   },
   { path: '/reports', component: Reports, name: 'reports' },
+  { path: '/materials-used', component: MaterialsUsed, name: 'materials-used' },
   { path: '/', redirect: '/dashboard' } // Redirect root to dashboard
 ]
 

@@ -8,6 +8,7 @@ import reportRoutes from './reportRoutes.js'
 import userRoutes from './userRoutes.js'
 import dashboardRoutes from './dashboardRoutes.js'
 import settingsRoutes from './settingsRoutes.js'
+import materialUsageRoutes from './materialUsageRoutes.js'
 
 const router = Router()
 
@@ -20,6 +21,7 @@ router.get('/health', (req, res) => {
 router.use('/categories', categoryRoutes)
 router.use('/items', itemRoutes)
 router.use('/usage', usageRoutes)
+router.use('/material-usage', materialUsageRoutes)
 router.use('/purchases', purchaseRoutes)
 router.use('/reports', reportRoutes)
 router.use('/users', userRoutes)

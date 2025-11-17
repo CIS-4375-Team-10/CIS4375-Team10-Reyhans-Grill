@@ -11,6 +11,7 @@
       <li><router-link to="/dashboard">Dashboard</router-link></li>
       <li><router-link to="/materials">Materials</router-link></li>
       <li><router-link to="/reports">Reports</router-link></li>
+      <li><router-link to="/materials-used">Materials Used</router-link></li>
       <li><button class="logout-btn" @click="logout">Logout</button></li>
     </ul>
   </nav>

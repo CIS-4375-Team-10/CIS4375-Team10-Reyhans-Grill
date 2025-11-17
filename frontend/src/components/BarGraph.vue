@@ -52,14 +52,14 @@ const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 onMounted(() => {
-  if (!inventoryStore.purchases.length && !inventoryStore.loading.purchases) {
-    inventoryStore.fetchPurchases().catch(error => console.error(error))
+  if (!inventoryStore.items.length && !inventoryStore.loading.items) {
+    inventoryStore.fetchItems().catch(error => console.error(error))
   }
 })
 
-const purchases = computed(() => inventoryStore.purchases ?? [])
+const inventoryItems = computed(() => inventoryStore.items ?? [])
 
-const parsePurchaseDate = (value) => {
+const parseDate = (value) => {
   if (!value) return null
   const normalized = value.includes('T') ? value : `${value}T00:00:00`
   const date = new Date(normalized)
@@ -69,8 +69,8 @@ const parsePurchaseDate = (value) => {
 const availableYears = computed(() => {
   const years = Array.from(
     new Set(
-      purchases.value
-        .map(p => parsePurchaseDate(p.purchaseDate)?.getFullYear())
+      inventoryItems.value
+        .map(item => parseDate(item.purchaseDate)?.getFullYear())
         .filter(Boolean)
     )
   ).sort((a, b) => a - b)
@@ -87,12 +87,20 @@ watch(availableYears, years => {
   }
 }, { immediate: true })
 
-const filteredPurchases = computed(() => {
+const filteredRecords = computed(() => {
   if (!selectedYear.value) return []
-  return purchases.value.filter(p => {
-    const date = parsePurchaseDate(p.purchaseDate)
-    return date && date.getFullYear() === selectedYear.value
-  })
+  return inventoryItems.value
+    .map(item => {
+      const date = parseDate(item.purchaseDate)
+      const amount =
+        Number(item.unitCost ?? 0) * Number(item.quantityInStock ?? 0)
+      return {
+        itemId: item.itemId,
+        date,
+        amount: Number.isFinite(amount) ? amount : 0
+      }
+    })
+    .filter(record => record.date && !Number.isNaN(record.date.getTime()) && record.date.getFullYear() === selectedYear.value && record.amount > 0)
 })
 
 const getIsoWeekNumber = (date) => {
@@ -109,11 +117,9 @@ const totalsByPeriod = computed(() => {
   const weekTotals = new Map()
   let yearTotal = 0
 
-  filteredPurchases.value.forEach(purchase => {
-    const date = parsePurchaseDate(purchase.purchaseDate)
-    if (!date) return
-    const cost = Number(purchase.totalCost ?? 0)
-    if (Number.isNaN(cost)) return
+  filteredRecords.value.forEach(record => {
+    const date = record.date
+    const cost = record.amount
 
     const weekday = (date.getDay() + 6) % 7
     dayTotals[weekday] += cost
@@ -177,75 +183,14 @@ const chartOptions = {
     legend: { display: false },
     tooltip: {
       callbacks: {
-        label: (context) => `${context.parsed.y}`
+        label: context => `$${context.parsed.y}`
       }
     }
   },
   scales: {
     y: {
       beginAtZero: true,
-      ticks: { callback: value => '
-
-<style scoped>
-.bargraph-container {
-  background-color: #fff;
-  padding: 1.5rem;
-  border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.left-section {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.year-select {
-  padding: 0.4rem 0.6rem;
-  border-radius: 8px;
-  border: 1px solid #2f7057;
-  background: #fff;
-  font-weight: 600;
-  color: #2f7057;
-}
-
-.time-filter {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.time-button {
-  padding: 0.35rem 0.75rem;
-  border: none;
-  border-radius: 8px;
-  background-color: #2f7057;
-  color: #fff;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 0.85rem;
-  white-space: nowrap;
-}
-
-.time-button.active {
-  background-color: #1a4a3a;
-}
-
-.chart-wrapper {
-  flex: 1;
-  min-height: 260px;
-}
-</style>
- + value },
+      ticks: { callback: value => `$${value}` },
       grid: { color: 'rgba(0,0,0,0.1)' }
     },
     x: {
@@ -253,6 +198,7 @@ const chartOptions = {
     }
   }
 }
+
 </script>
 
 <style scoped>
@@ -314,4 +260,3 @@ const chartOptions = {
   min-height: 260px;
 }
 </style>
-

@@ -76,6 +76,17 @@ export const apiClient = {
   updateInventorySettings: payload =>
     request('/settings/inventory', { method: 'PUT', body: payload }),
 
+  // Material usage
+  getMaterialUsage: params => {
+    const searchParams = new URLSearchParams()
+    if (params?.fromDate) searchParams.append('fromDate', params.fromDate)
+    if (params?.toDate) searchParams.append('toDate', params.toDate)
+    const query = searchParams.toString()
+    return request(`/material-usage${query ? `?${query}` : ''}`)
+  },
+  createMaterialUsage: payload =>
+    request('/material-usage', { method: 'POST', body: payload }),
+
   // Users
   getUsers: () => request('/users'),
 
