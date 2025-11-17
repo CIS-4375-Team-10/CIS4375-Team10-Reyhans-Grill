@@ -70,15 +70,21 @@ export const getMonthlyExpenses = asyncHandler(async (req, res) => {
   // Build WHERE dynamically if range is provided
   const where = []
   const params = []
-  if (from) { where.push('expense_date >= ?'); params.push(from) }
-  if (to)   { where.push('expense_date <= ?'); params.push(to) }
+  if (from) {
+    where.push('Expense_Date >= ?')
+    params.push(from)
+  }
+  if (to) {
+    where.push('Expense_Date <= ?')
+    params.push(to)
+  }
   const whereSQL = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
   const [rows] = await pool.query(
     `
-    SELECT DATE_FORMAT(expense_date, '%Y-%m') AS label,
-           ROUND(SUM(amount), 2)              AS value
-    FROM expenses
+    SELECT DATE_FORMAT(Expense_Date, '%Y-%m') AS label,
+           ROUND(SUM(Amount), 2)              AS value
+    FROM Expense
     ${whereSQL}
     GROUP BY label
     ORDER BY label;

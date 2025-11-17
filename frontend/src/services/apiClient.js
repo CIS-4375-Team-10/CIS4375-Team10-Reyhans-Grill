@@ -161,6 +161,7 @@ export const apiClient = {
   exportExpiringInventory: params =>
     downloadExcel('/exports/inventory/expiring-soon', params),
   exportExpenseReport: params => downloadExcel('/exports/expenses', params),
+  exportMaterialUsageLog: params => downloadExcel('/exports/material-usage', params),
 
   // Expense tracker
   getExpenseTracker: params => {

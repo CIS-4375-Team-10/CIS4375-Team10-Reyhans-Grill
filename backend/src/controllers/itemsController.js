@@ -74,7 +74,13 @@ const itemSchema = z.object({
   status: statusSchema,
   itemType: itemTypeSchema,
   parLevel: z.coerce.number().int().nonnegative().optional(),
-  reorderPoint: z.coerce.number().int().nonnegative().optional()
+  reorderPoint: z.coerce.number().int().nonnegative().optional(),
+  lowStockThreshold: z
+    .union([z.coerce.number().int().nonnegative(), z.null()])
+    .optional(),
+  expiringSoonDays: z
+    .union([z.coerce.number().int().nonnegative(), z.null()])
+    .optional()
 })
 
 const usageLogSchema = z.object({
@@ -268,6 +274,9 @@ export const logItemUsage = asyncHandler(async (req, res) => {
 
     const currentQuantity = Number(items[0].quantityInStock ?? 0)
     const usedQuantity = Number(payload.usedQuantity)
+    if (usedQuantity > currentQuantity) {
+      throw new HttpError(400, 'Usage exceeds available quantity')
+    }
     const nextQuantity = Math.max(currentQuantity - usedQuantity, 0)
     const usageDate = payload.usageDate ?? new Date().toISOString().slice(0, 10)
 

@@ -32,6 +32,11 @@ const expenseExportSchema = z.object({
   period: z.enum(['day', 'week', 'month']).default('day')
 })
 
+const materialUsageExportSchema = z.object({
+  fromDate: dateString.optional(),
+  toDate: dateString.optional()
+})
+
 const formatLabel = (period, start, end) => {
   if (period === 'day') {
     return start
@@ -502,5 +507,83 @@ export const exportExpenseReport = asyncHandler(async (req, res) => {
   autoSizeColumns(detailSheet)
 
   const filename = `Expense_Report_${startDate}_to_${endDate}_${period}_${safeTimestamp()}.xlsx`
+  await sendWorkbook(res, workbook, filename)
+})
+
+export const exportMaterialUsageLog = asyncHandler(async (req, res) => {
+  const { fromDate, toDate } = materialUsageExportSchema.parse(req.query)
+
+  const clauses = []
+  const params = []
+  if (fromDate) {
+    clauses.push('mu.Usage_Date >= ?')
+    params.push(`${fromDate} 00:00:00`)
+  }
+  if (toDate) {
+    clauses.push('mu.Usage_Date <= ?')
+    params.push(`${toDate} 23:59:59`)
+  }
+
+  const whereClause = clauses.length
+    ? `WHERE ${clauses.join(' AND ')}`
+    : 'WHERE mu.Usage_Date >= DATE_SUB(NOW(), INTERVAL 30 DAY)'
+
+  const [rows] = await pool.query(
+    `SELECT mu.Usage_ID AS usageId,
+            DATE_FORMAT(mu.Usage_Date, '%Y-%m-%d %H:%i:%s') AS usageDate,
+            mu.Quantity_Used AS quantityUsed,
+            mu.Reason AS reason,
+            i.Item_Name AS materialName,
+            i.Unit AS unit
+       FROM Material_Usage mu
+       JOIN Item i ON i.Item_ID = mu.Item_ID
+      ${whereClause}
+      ORDER BY mu.Usage_Date DESC`,
+    params
+  )
+
+  const workbook = new ExcelJS.Workbook()
+  const worksheet = workbook.addWorksheet('Material Usage')
+  worksheet.columns = [
+    { header: 'Usage Date', key: 'usageDate' },
+    { header: 'Material', key: 'materialName' },
+    { header: 'Quantity Used', key: 'quantityUsed' },
+    { header: 'Unit', key: 'unit' },
+    { header: 'Reason', key: 'reason' }
+  ]
+
+  rows.forEach(row => {
+    worksheet.addRow({
+      usageDate: row.usageDate,
+      materialName: row.materialName,
+      quantityUsed: Number(row.quantityUsed ?? 0),
+      unit: row.unit ?? '',
+      reason: row.reason ?? ''
+    })
+  })
+
+  if (rows.length) {
+    worksheet.addRow({})
+    worksheet.addRow({
+      usageDate: 'Total Entries',
+      materialName: rows.length,
+      quantityUsed: rows.reduce((sum, row) => sum + Number(row.quantityUsed ?? 0), 0)
+    })
+  }
+
+  worksheet.autoFilter = 'A1:E1'
+  applyHeaderStyles(worksheet)
+  autoSizeColumns(worksheet)
+
+  const suffix =
+    fromDate && toDate
+      ? `${fromDate}_to_${toDate}`
+      : fromDate
+        ? `from_${fromDate}`
+        : toDate
+          ? `through_${toDate}`
+          : 'recent'
+
+  const filename = `Material_Usage_${suffix}_${safeTimestamp()}.xlsx`
   await sendWorkbook(res, workbook, filename)
 })
