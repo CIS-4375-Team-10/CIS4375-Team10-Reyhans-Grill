@@ -32,3 +32,5 @@ npm run dev
 ```
 
 The Vue client reads from `VITE_API_BASE_URL` (defaults to `http://localhost:4000/api`) and now pulls all table data from the backend instead of hard-coded values.
+
+For production deployment, see `DEPLOYMENT.md` in the project root.

@@ -32,12 +32,6 @@ const expenseExportSchema = z.object({
   period: z.enum(['day', 'week', 'month']).default('day')
 })
 
-const bucketExpressions = {
-  day: 'DATE(r.Report_Date)',
-  week: 'YEARWEEK(r.Report_Date, 3)',
-  month: "DATE_FORMAT(r.Report_Date, '%Y-%m')"
-}
-
 const formatLabel = (period, start, end) => {
   if (period === 'day') {
     return start
@@ -91,6 +85,71 @@ const applyHeaderStyles = worksheet => {
   headerRow.font = { bold: true }
   headerRow.alignment = { vertical: 'middle', horizontal: 'center' }
   worksheet.views = [{ state: 'frozen', ySplit: 1 }]
+}
+
+const toCurrencyNumber = value => Number(value ?? 0)
+
+const mapManualExpenseForExport = row => ({
+  expenseId: row.expenseId,
+  expenseDate: row.expenseDate,
+  paymentType: row.paymentType,
+  paidTo: row.paidTo,
+  description: row.description ?? '',
+  amount: toCurrencyNumber(row.amount),
+  source: 'manual'
+})
+
+const mapInventoryPurchaseForExport = row => ({
+  expenseId: row.purchaseId,
+  expenseDate: row.purchaseDate,
+  paymentType: row.paymentType ?? 'Inventory',
+  paidTo: row.vendorName ?? row.itemName ?? 'Inventory Supplier',
+  description: row.description ?? `Inventory restock - ${row.itemName ?? ''}`.trim(),
+  amount: toCurrencyNumber(row.totalCost),
+  source: 'inventory'
+})
+
+const mapInventoryItemForExport = (row, fallbackDate) => {
+  const quantity = Number(row.quantityInStock ?? 0)
+  const unitCost = Number(row.unitCost ?? 0)
+  const amount = Number((quantity * unitCost).toFixed(2))
+  if ((!row.purchaseDate && !fallbackDate) || amount <= 0) {
+    return null
+  }
+  return {
+    expenseId: `ITEM_${row.itemId}`,
+    expenseDate: row.purchaseDate ?? fallbackDate,
+    paymentType: 'Inventory',
+    paidTo: row.itemName ?? 'Inventory Item',
+    description: row.categoryName
+      ? `Inventory purchase (${row.categoryName})`
+      : 'Inventory purchase',
+    amount,
+    source: 'inventory'
+  }
+}
+
+const getBucketKey = (period, dateStringValue) => {
+  if (!dateStringValue) return ''
+  if (period === 'day') {
+    return dateStringValue
+  }
+  if (period === 'month') {
+    return dateStringValue.slice(0, 7)
+  }
+
+  const date = new Date(`${dateStringValue}T00:00:00Z`)
+  if (Number.isNaN(date.getTime())) {
+    return dateStringValue
+  }
+
+  const day = date.getUTCDay() || 7
+  const thursday = new Date(date)
+  thursday.setUTCDate(date.getUTCDate() + 4 - day)
+  const yearStart = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1))
+  const weekNo = Math.ceil(((thursday - yearStart) / 86400000 + 1) / 7)
+
+  return `${thursday.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`
 }
 
 export const exportFullInventory = asyncHandler(async (req, res) => {
@@ -283,29 +342,100 @@ export const exportExpenseReport = asyncHandler(async (req, res) => {
     throw new HttpError(400, 'Start date must be before end date')
   }
 
-  const [summaryRows] = await pool.query(
-    `SELECT ${bucketExpressions[period]} AS bucket,
-            DATE_FORMAT(MIN(r.Report_Date), '%Y-%m-%d') AS rangeStart,
-            DATE_FORMAT(MAX(r.Report_Date), '%Y-%m-%d') AS rangeEnd,
-            SUM(r.Total_Spent) AS totalSpent,
-            SUM(r.Total_Used_Items) AS totalUsedItems
-       FROM Report r
-      WHERE r.Report_Date BETWEEN ? AND ?
-      GROUP BY bucket
-      ORDER BY bucket`,
+  const expensePromise = pool.query(
+    `SELECT Expense_ID AS expenseId,
+            Expense_Date AS expenseDate,
+            Payment_Type AS paymentType,
+            Paid_To AS paidTo,
+            Description AS description,
+            Amount AS amount
+       FROM Expense
+      WHERE Expense_Date BETWEEN ? AND ?
+      ORDER BY Expense_Date ASC, Expense_ID ASC`,
     [startDate, endDate]
   )
 
-  const [detailRows] = await pool.query(
-    `SELECT r.Report_Date AS reportDate,
-            r.Total_Spent AS totalSpent,
-            r.Total_Used_Items AS totalUsedItems,
-            u.Username AS username
-       FROM Report r
-       JOIN \`user\` u ON u.User_ID = r.User_ID
-      WHERE r.Report_Date BETWEEN ? AND ?
-      ORDER BY r.Report_Date ASC`,
+  const inventoryPurchasesPromise = pool.query(
+    `SELECT p.Purchase_ID AS purchaseId,
+            p.Purchase_Date AS purchaseDate,
+            p.Total_Cost AS totalCost,
+            i.Item_Name AS itemName,
+            NULL AS vendorName,
+            NULL AS paymentType,
+            NULL AS description
+       FROM Purchase p
+       JOIN Item i ON i.Item_ID = p.Item_ID
+      WHERE p.Purchase_Date BETWEEN ? AND ?
+      ORDER BY p.Purchase_Date ASC, p.Purchase_ID ASC`,
     [startDate, endDate]
+  )
+
+  const inventoryFromItemsPromise = pool.query(
+    `SELECT i.Item_ID AS itemId,
+            i.Item_Name AS itemName,
+            i.Purchase_Date AS purchaseDate,
+            i.Unit_Cost AS unitCost,
+            i.Quantity_in_Stock AS quantityInStock,
+            c.Category_Name AS categoryName,
+            DATE_FORMAT(i.Created_At, '%Y-%m-%d') AS createdDate
+       FROM Item i
+  LEFT JOIN Purchase p
+         ON p.Item_ID = i.Item_ID
+        AND p.Purchase_Date = i.Purchase_Date
+  LEFT JOIN Category c ON c.Category_ID = i.Category_ID
+      WHERE i.Is_Deleted = 0
+        AND i.Purchase_Date IS NOT NULL
+        AND i.Purchase_Date BETWEEN ? AND ?
+        AND p.Purchase_ID IS NULL
+      ORDER BY i.Purchase_Date ASC, i.Item_ID ASC`,
+    [startDate, endDate]
+  )
+
+  const [[expenses], [inventoryPurchases], [inventoryItems]] = await Promise.all([
+    expensePromise,
+    inventoryPurchasesPromise,
+    inventoryFromItemsPromise
+  ])
+
+  const manualExpenseRows = expenses.map(mapManualExpenseForExport)
+  const inventoryExpenseRows = [
+    ...inventoryPurchases.map(mapInventoryPurchaseForExport),
+    ...inventoryItems
+      .map(row => mapInventoryItemForExport(row, row.createdDate ?? startDate))
+      .filter(Boolean)
+  ]
+
+  const combinedExpenses = [...manualExpenseRows, ...inventoryExpenseRows].sort((a, b) => {
+    if (a.expenseDate === b.expenseDate) {
+      return (a.expenseId ?? 0) < (b.expenseId ?? 0) ? -1 : 1
+    }
+    return a.expenseDate < b.expenseDate ? -1 : 1
+  })
+
+  const summaryMap = new Map()
+  combinedExpenses.forEach(row => {
+    const date = row.expenseDate
+    const bucketKey = getBucketKey(period, date)
+    if (!bucketKey) return
+    let bucket = summaryMap.get(bucketKey)
+    if (!bucket) {
+      bucket = {
+        bucketKey,
+        rangeStart: date,
+        rangeEnd: date,
+        totalSpent: 0,
+        entryCount: 0
+      }
+      summaryMap.set(bucketKey, bucket)
+    }
+    if (date < bucket.rangeStart) bucket.rangeStart = date
+    if (date > bucket.rangeEnd) bucket.rangeEnd = date
+    bucket.totalSpent += row.amount
+    bucket.entryCount += 1
+  })
+
+  const summaryRows = Array.from(summaryMap.values()).sort((a, b) =>
+    a.rangeStart.localeCompare(b.rangeStart)
   )
 
   const workbook = new ExcelJS.Workbook()
@@ -315,21 +445,21 @@ export const exportExpenseReport = asyncHandler(async (req, res) => {
     { header: 'Range Start', key: 'rangeStart' },
     { header: 'Range End', key: 'rangeEnd' },
     { header: 'Total Spent', key: 'totalSpent', style: { numFmt: '$#,##0.00' } },
-    { header: 'Total Used Items', key: 'totalUsedItems', style: { numFmt: '#,##0' } }
+    { header: 'Entry Count', key: 'entryCount', style: { numFmt: '#,##0' } }
   ]
 
-  let totals = { spent: 0, used: 0 }
+  let totals = { spent: 0, entries: 0 }
   summaryRows.forEach(row => {
     const spent = Number(row.totalSpent ?? 0)
-    const used = Number(row.totalUsedItems ?? 0)
+    const entries = Number(row.entryCount ?? 0)
     totals.spent += spent
-    totals.used += used
+    totals.entries += entries
     summarySheet.addRow({
       periodLabel: formatLabel(period, row.rangeStart, row.rangeEnd),
       rangeStart: row.rangeStart,
       rangeEnd: row.rangeEnd,
       totalSpent: spent,
-      totalUsedItems: used
+      entryCount: entries
     })
   })
 
@@ -339,7 +469,7 @@ export const exportExpenseReport = asyncHandler(async (req, res) => {
   summarySheet.addRow({
     periodLabel: 'Totals',
     totalSpent: totals.spent,
-    totalUsedItems: totals.used
+    entryCount: totals.entries
   })
 
   summarySheet.autoFilter = 'A1:E1'
@@ -348,22 +478,26 @@ export const exportExpenseReport = asyncHandler(async (req, res) => {
 
   const detailSheet = workbook.addWorksheet('Report Entries')
   detailSheet.columns = [
-    { header: 'Report Date', key: 'reportDate' },
-    { header: 'Total Spent', key: 'totalSpent', style: { numFmt: '$#,##0.00' } },
-    { header: 'Total Used Items', key: 'totalUsedItems', style: { numFmt: '#,##0' } },
-    { header: 'Entered By', key: 'username' }
+    { header: 'Date', key: 'expenseDate' },
+    { header: 'Source', key: 'source' },
+    { header: 'Payment Type', key: 'paymentType' },
+    { header: 'Paid To', key: 'paidTo' },
+    { header: 'Description', key: 'description' },
+    { header: 'Amount', key: 'amount', style: { numFmt: '$#,##0.00' } }
   ]
 
-  detailRows.forEach(row => {
+  combinedExpenses.forEach(row => {
     detailSheet.addRow({
-      reportDate: formatDate(row.reportDate),
-      totalSpent: Number(row.totalSpent ?? 0),
-      totalUsedItems: Number(row.totalUsedItems ?? 0),
-      username: row.username
+      expenseDate: formatDate(row.expenseDate),
+      source: row.source,
+      paymentType: row.paymentType,
+      paidTo: row.paidTo,
+      description: row.description,
+      amount: Number(row.amount ?? 0)
     })
   })
 
-  detailSheet.autoFilter = 'A1:D1'
+  detailSheet.autoFilter = 'A1:F1'
   applyHeaderStyles(detailSheet)
   autoSizeColumns(detailSheet)
 

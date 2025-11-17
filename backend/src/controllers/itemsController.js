@@ -22,6 +22,11 @@ const dateString = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
 
+const optionalDate = z
+  .union([dateString, z.literal('').transform(() => null), z.null().transform(() => null)])
+  .optional()
+  .transform(value => (value === undefined ? undefined : value))
+
 // Expiration date can be blank in the UI. We convert '' to null so MySQL stores it cleanly.
 const expirationDateSchema = z
   .union([dateString, z.literal('').transform(() => null), z.null()])
@@ -35,17 +40,39 @@ const unitSchema = z
     message: `Unit must be one of: ${allowedUnits.join(', ')}`
   })
 
+const statusSchema = z.preprocess(
+  value => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim().toUpperCase()
+      return trimmed || undefined
+    }
+    return value
+  },
+  z.enum(statusEnum).default('AVAILABLE')
+)
+
+const itemTypeSchema = z.preprocess(
+  value => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim().toUpperCase()
+      return trimmed || undefined
+    }
+    return value
+  },
+  z.enum(itemTypes).default('MATERIAL')
+)
+
 const itemSchema = z.object({
   itemName: z.string().min(1).max(120),
   categoryId: z.string().min(1),
   quantityInStock: z.coerce.number().int().nonnegative(),
   unit: unitSchema,
   unitCost: z.coerce.number().nonnegative(),
-  purchaseDate: dateString.optional(),
+  purchaseDate: optionalDate,
   shelfLifeDays: z.coerce.number().int().nonnegative().optional(),
   expirationDate: expirationDateSchema,
-  status: z.enum(statusEnum).default('AVAILABLE'),
-  itemType: z.enum(itemTypes).default('MATERIAL'),
+  status: statusSchema,
+  itemType: itemTypeSchema,
   parLevel: z.coerce.number().int().nonnegative().optional(),
   reorderPoint: z.coerce.number().int().nonnegative().optional()
 })
