@@ -95,15 +95,6 @@
       </label>
       
       <label>
-        <span>Status</span>
-        <select v-model="form.status">
-          <option value="AVAILABLE">Available</option>
-          <option value="LOW">Low</option>
-          <option value="OUT_OF_STOCK">Out of Stock</option>
-        </select>
-      </label>
-
-      <label>
         <span class="field-label">
           <span>Low Stock Threshold</span>
           <span class="optional-tag">optional</span>
@@ -159,7 +150,6 @@
             <th>Shelf Life (days)</th>
             <th>Date Added</th>
             <th v-if="inventoryType === 'MATERIAL'">Expiration</th>
-            <th>Status</th>
             <th class="actions-col">Actions</th>
           </tr>
         </thead>
@@ -172,7 +162,6 @@
             <td>{{ formatShelfLife(item.shelfLifeDays) }}</td>
             <td>{{ formatDisplayDate(item.purchaseDate) }}</td>
             <td v-if="inventoryType === 'MATERIAL'">{{ formatDisplayDate(item.expirationDate) }}</td>
-            <td>{{ item.status }}</td>
             <td>
               <button class="edit-button" type="button" @click="startEdit(item)">
                 Edit
@@ -308,7 +297,6 @@ const form = ref({
   shelfLifeDays: null,
   purchaseDate: '',
   expirationDate: '',
-  status: 'AVAILABLE',
   itemType: 'MATERIAL',
   lowStockThreshold: null,
   expiringSoonDays: null
@@ -400,7 +388,6 @@ const handleSubmit = async () => {
       payload.expiringSoonDays === '' || payload.expiringSoonDays == null
         ? null
         : payload.expiringSoonDays
-    payload.status = payload.status || 'AVAILABLE'
     payload.itemType = payload.itemType || inventoryType.value
 
     if (editingItemId.value) {
@@ -427,7 +414,6 @@ const startEdit = (item) => {
     shelfLifeDays: item.shelfLifeDays,
     purchaseDate: formatDateInput(item.purchaseDate),
     expirationDate: formatDateInput(item.expirationDate),
-    status: item.status || 'AVAILABLE',
     itemType: item.itemType || (inventoryType.value === 'UTENSIL' ? 'UTENSIL' : 'MATERIAL'),
     lowStockThreshold: item.lowStockThreshold ?? null,
     expiringSoonDays: item.expiringSoonDays ?? null
@@ -444,7 +430,6 @@ const resetForm = () => {
     shelfLifeDays: null,
     purchaseDate: '',
     expirationDate: '',
-    status: 'AVAILABLE',
     itemType: inventoryType.value === 'UTENSIL' ? 'UTENSIL' : 'MATERIAL',
     lowStockThreshold: null,
     expiringSoonDays: null

@@ -148,54 +148,14 @@ const alertSettings = computed(() => ({
   lowStockThreshold:
     inventorySettings.value.lowStockThreshold != null
       ? Number(inventorySettings.value.lowStockThreshold)
-      : 'Not set',
+      : '—',
   expiringSoonDays:
     inventorySettings.value.expiringSoonDays != null
       ? Number(inventorySettings.value.expiringSoonDays)
-      : 'Not set'
+      : '—'
 }))
-const resolvedLowStockThreshold = computed(() => {
-  const value = Number(inventorySettings.value.lowStockThreshold)
-  return Number.isFinite(value) ? value : null
-})
-const resolvedExpiringWindow = computed(() => {
-  const value = Number(inventorySettings.value.expiringSoonDays)
-  return Number.isFinite(value) ? value : null
-})
-const lowStockAlerts = computed(() => {
-  if (!inventoryStore.items.length) return []
-  return inventoryStore.items
-    .filter(item => {
-      const threshold =
-        item.lowStockThreshold != null && item.lowStockThreshold !== ''
-          ? Number(item.lowStockThreshold)
-          : resolvedLowStockThreshold.value
-      if (!Number.isFinite(threshold)) return false
-      const quantity = Number(item.quantityInStock ?? 0)
-      return quantity <= threshold
-    })
-    .slice(0, 6)
-})
-const expiringAlerts = computed(() => {
-  if (!inventoryStore.items.length) return []
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return inventoryStore.items
-    .filter(item => {
-      const windowDays =
-        item.expiringSoonDays != null && item.expiringSoonDays !== ''
-          ? Number(item.expiringSoonDays)
-          : resolvedExpiringWindow.value
-      if (!Number.isFinite(windowDays) || windowDays < 0) return false
-      if (!item.expirationDate) return false
-      const expiration = new Date(item.expirationDate)
-      if (Number.isNaN(expiration.getTime())) return false
-      expiration.setHours(0, 0, 0, 0)
-      const diffDays = (expiration.getTime() - today.getTime()) / 86400000
-      return diffDays >= 0 && diffDays <= windowDays
-    })
-    .slice(0, 6)
-})
+const lowStockAlerts = computed(() => inventoryStore.lowStockMaterials.slice(0, 6))
+const expiringAlerts = computed(() => inventoryStore.expiringSoonMaterials.slice(0, 6))
 const customLowStockCount = computed(
   () => inventoryStore.items.filter(item => item.lowStockThreshold != null && item.lowStockThreshold !== '').length
 )

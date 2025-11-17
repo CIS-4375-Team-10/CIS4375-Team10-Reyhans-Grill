@@ -387,3 +387,20 @@ export const restoreItem = asyncHandler(async (req, res) => {
 
   res.json(rows[0])
 })
+
+export const permanentlyDeleteItem = asyncHandler(async (req, res) => {
+  const { id } = paramsSchema.parse(req.params)
+
+  const [result] = await pool.query(
+    `DELETE FROM Item
+      WHERE Item_ID = ?
+        AND Is_Deleted = 1`,
+    [id]
+  )
+
+  if (result.affectedRows === 0) {
+    throw new HttpError(404, 'Deleted item not found')
+  }
+
+  res.status(204).send()
+})

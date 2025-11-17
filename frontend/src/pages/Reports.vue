@@ -121,9 +121,12 @@
             <td>{{ formatQuantityWithUnit(item.quantityInStock, item.unit) }}</td>
             <td>{{ item.categoryName }}</td>
             <td>{{ formatDate(item.deletedAt) }}</td>
-            <td>
+            <td class="deleted-actions">
               <button class="restore-button" @click="handleRestore(item)">
                 Undo Delete
+              </button>
+              <button class="purge-button" @click="handlePermanentDelete(item)">
+                Delete Permanently
               </button>
             </td>
           </tr>
@@ -260,6 +263,19 @@ const handleRestore = async item => {
     await inventoryStore.restoreItem(item.itemId)
   } catch (error) {
     alert(error.message ?? 'Unable to restore item.')
+  }
+}
+
+const handlePermanentDelete = async item => {
+  const confirmed = window.confirm(
+    `Permanently remove ${item.itemName}? This cannot be undone.`
+  )
+  if (!confirmed) return
+
+  try {
+    await inventoryStore.permanentlyDeleteItem(item.itemId)
+  } catch (error) {
+    alert(error.message ?? 'Unable to permanently delete this item.')
   }
 }
 
@@ -422,6 +438,26 @@ td {
 
 .restore-button:hover {
   background: #1d4ed8;
+}
+
+.deleted-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.purge-button {
+  background: #b91c1c;
+  border: none;
+  color: #fff;
+  padding: 0.35rem 0.85rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.purge-button:hover {
+  background: #991b1b;
 }
 
 .settings-card {
