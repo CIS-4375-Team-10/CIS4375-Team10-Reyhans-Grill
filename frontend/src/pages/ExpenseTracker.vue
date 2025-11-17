@@ -512,7 +512,7 @@ onMounted(() => {
 <style scoped>
 .expense-tracker {
   padding: 2rem;
-  background-color: #f5f7f4;
+  background-color: #FFF7ED;
   min-height: 100vh;
 }
 

@@ -478,7 +478,7 @@ const formatQuantityWithUnit = (qty, unit) => {
 <style scoped>
 .reports-container {
   padding: 2rem;
-  background-color: #f3f7f6;
+  background-color: #FFF7ED;
   min-height: 100vh;
 }
 
