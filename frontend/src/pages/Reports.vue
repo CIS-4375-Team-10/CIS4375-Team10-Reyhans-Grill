@@ -58,6 +58,82 @@
       <p v-if="settingsStatus" class="settings-status">{{ settingsStatus }}</p>
     </section>
 
+    <section class="export-card" v-if="inventorySettings">
+      <h3>Excel Exports</h3>
+      <p class="section-subtitle">
+        Download inventory snapshots or an expense summary that match your current report settings.
+      </p>
+
+      <div class="export-grid">
+        <div class="export-panel">
+          <h4>Inventory Snapshots</h4>
+          <p class="export-text">
+            Use your saved thresholds or override them for this download only.
+          </p>
+          <div class="export-row">
+            <button
+              class="export-button primary"
+              @click="handleExportFullInventory"
+              :disabled="exporting.fullInventory"
+            >
+              {{ exporting.fullInventory ? 'Exporting...' : 'Full Inventory' }}
+            </button>
+          </div>
+          <div class="export-row">
+            <label>
+              Low Stock Threshold
+              <input
+                type="number"
+                min="1"
+                v-model.number="exportFilters.lowStockThreshold"
+                placeholder="Use saved value"
+              />
+            </label>
+            <button
+              class="export-button"
+              @click="handleExportLowStock"
+              :disabled="exporting.lowStock"
+            >
+              {{ exporting.lowStock ? 'Exporting...' : 'Low Stock Only' }}
+            </button>
+          </div>
+          <div class="export-row">
+            <label>
+              Expiring Soon (days)
+              <input
+                type="number"
+                min="1"
+                v-model.number="exportFilters.expiringInDays"
+                placeholder="Use saved value"
+              />
+            </label>
+            <button
+              class="export-button"
+              @click="handleExportExpiringSoon"
+              :disabled="exporting.expiringSoon"
+            >
+              {{ exporting.expiringSoon ? 'Exporting...' : 'Expiring Soon' }}
+            </button>
+          </div>
+          <p class="export-hint">Leave the overrides blank to use the saved settings.</p>
+        </div>
+
+        <div class="export-panel">
+          <h4>Expense Report</h4>
+          <p class="export-text">
+            Uses the same date range and period you pick for the custom report below.
+          </p>
+          <button
+            class="export-button primary"
+            @click="handleExportExpenseReport"
+            :disabled="exporting.expense"
+          >
+            {{ exporting.expense ? 'Exporting...' : 'Export Expense Report' }}
+          </button>
+        </div>
+      </div>
+    </section>
+
     <!-- Low Stock Table -->
     <div class="table-container" v-if="lowStock.length">
       <h3>Low Stock Items (qty <= {{ lowStockThresholdLabel }})</h3>
@@ -222,6 +298,16 @@ const settingsForm = reactive({
 })
 const settingsStatus = ref('')
 const savingSettings = ref(false)
+const exportFilters = reactive({
+  lowStockThreshold: '',
+  expiringInDays: ''
+})
+const exporting = reactive({
+  fullInventory: false,
+  lowStock: false,
+  expiringSoon: false,
+  expense: false
+})
 
 const today = new Date()
 const defaultEndDate = today.toISOString().slice(0, 10)
@@ -279,12 +365,19 @@ const handlePermanentDelete = async item => {
   }
 }
 
+const syncExportDefaults = settings => {
+  if (!settings) return
+  exportFilters.lowStockThreshold = settings.lowStockThreshold
+  exportFilters.expiringInDays = settings.expiringSoonDays
+}
+
 const loadInventorySettings = async () => {
   try {
     const settings = await apiClient.getInventorySettings()
     inventorySettings.value = settings
     settingsForm.lowStockThreshold = settings.lowStockThreshold
     settingsForm.expiringSoonDays = settings.expiringSoonDays
+    syncExportDefaults(settings)
   } catch (error) {
     console.error(error)
   }
@@ -301,11 +394,111 @@ const saveInventorySettings = async () => {
     const updated = await apiClient.updateInventorySettings(payload)
     inventorySettings.value = updated
     settingsStatus.value = 'Settings saved'
+    syncExportDefaults(updated)
     await inventoryStore.fetchSummary()
   } catch (error) {
     settingsStatus.value = error.message ?? 'Unable to save settings'
   } finally {
     savingSettings.value = false
+  }
+}
+
+const fileTimestamp = () =>
+  new Date().toISOString().replace(/[:.]/g, '').replace('T', '_').replace('Z', '')
+
+const triggerDownload = (blob, filename) => {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+const handleExportFullInventory = async () => {
+  try {
+    exporting.fullInventory = true
+    const blob = await apiClient.exportFullInventory()
+    triggerDownload(blob, `full-inventory-${fileTimestamp()}.xlsx`)
+  } catch (error) {
+    alert(error.message ?? 'Unable to export the full inventory right now.')
+  } finally {
+    exporting.fullInventory = false
+  }
+}
+
+const handleExportLowStock = async () => {
+  if (
+    exportFilters.lowStockThreshold !== '' &&
+    Number(exportFilters.lowStockThreshold) <= 0
+  ) {
+    alert('Low stock threshold must be greater than zero.')
+    return
+  }
+  try {
+    exporting.lowStock = true
+    const params = {}
+    if (exportFilters.lowStockThreshold !== '' && exportFilters.lowStockThreshold != null) {
+      params.threshold = exportFilters.lowStockThreshold
+    }
+    const blob = await apiClient.exportLowStockInventory(params)
+    const suffix = params.threshold ?? 'default'
+    triggerDownload(blob, `low-stock-${suffix}-${fileTimestamp()}.xlsx`)
+  } catch (error) {
+    alert(error.message ?? 'Unable to export the low stock list right now.')
+  } finally {
+    exporting.lowStock = false
+  }
+}
+
+const handleExportExpiringSoon = async () => {
+  if (
+    exportFilters.expiringInDays !== '' &&
+    Number(exportFilters.expiringInDays) <= 0
+  ) {
+    alert('Expiring soon days must be greater than zero.')
+    return
+  }
+  try {
+    exporting.expiringSoon = true
+    const params = {}
+    if (exportFilters.expiringInDays !== '' && exportFilters.expiringInDays != null) {
+      params.expiringInDays = exportFilters.expiringInDays
+    }
+    const blob = await apiClient.exportExpiringInventory(params)
+    const suffix = params.expiringInDays ?? 'default'
+    triggerDownload(blob, `expiring-soon-${suffix}-${fileTimestamp()}.xlsx`)
+  } catch (error) {
+    alert(error.message ?? 'Unable to export the expiring items right now.')
+  } finally {
+    exporting.expiringSoon = false
+  }
+}
+
+const handleExportExpenseReport = async () => {
+  try {
+    if (!reportFilters.startDate || !reportFilters.endDate) {
+      throw new Error('Select a start and end date first.')
+    }
+    if (reportFilters.startDate > reportFilters.endDate) {
+      throw new Error('Start date must be before end date.')
+    }
+    exporting.expense = true
+    const blob = await apiClient.exportExpenseReport({
+      startDate: reportFilters.startDate,
+      endDate: reportFilters.endDate,
+      period: reportFilters.period
+    })
+    triggerDownload(
+      blob,
+      `expense-report_${reportFilters.startDate}_${reportFilters.endDate}_${reportFilters.period}_${fileTimestamp()}.xlsx`
+    )
+  } catch (error) {
+    alert(error.message ?? 'Unable to export the expense report right now.')
+  } finally {
+    exporting.expense = false
   }
 }
 
@@ -514,6 +707,88 @@ td {
   margin-top: 0.75rem;
   font-weight: 600;
   color: #065f46;
+}
+
+.export-card {
+  background-color: #fff;
+  border-radius: 16px;
+  padding: 1.5rem;
+  max-width: 900px;
+  margin: 1rem auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.export-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.export-panel {
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  padding: 1rem;
+  background-color: #f9fafb;
+}
+
+.export-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin-bottom: 0.85rem;
+}
+
+.export-row label {
+  flex: 1;
+  font-weight: 600;
+  color: #143029;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.export-row input {
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+}
+
+.export-button {
+  background-color: #e6b553;
+  color: #143029;
+  border: none;
+  padding: 0.65rem 1.2rem;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.export-button.primary {
+  background-color: #2563eb;
+  color: #fff;
+}
+
+.export-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.export-button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.export-text {
+  color: #4b5563;
+  margin: 0 0 1rem 0;
+}
+
+.export-hint {
+  font-size: 0.85rem;
+  color: #6b7280;
 }
 
 .custom-report-card {

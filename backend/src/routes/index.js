@@ -10,6 +10,7 @@ import dashboardRoutes from './dashboardRoutes.js'
 import settingsRoutes from './settingsRoutes.js'
 import inventoryRoutes from './inventoryRoutes.js'
 import materialUsageRoutes from './materialUsageRoutes.js'
+import exportRoutes from './exportRoutes.js'
 
 const router = Router()
 
@@ -29,5 +30,6 @@ router.use('/users', userRoutes)
 router.use('/dashboard', dashboardRoutes)
 router.use('/settings', settingsRoutes)
 router.use('/inventory', inventoryRoutes)
+router.use('/exports', exportRoutes)
 
 export default router

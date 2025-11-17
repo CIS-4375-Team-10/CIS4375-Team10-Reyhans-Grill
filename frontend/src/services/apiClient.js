@@ -3,6 +3,17 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:400
   ''
 )
 
+const buildQueryString = params => {
+  const searchParams = new URLSearchParams()
+  Object.entries(params ?? {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      searchParams.append(key, value)
+    }
+  })
+  const query = searchParams.toString()
+  return query ? `?${query}` : ''
+}
+
 const request = async (path, options = {}) => {
   const config = {
     method: options.method ?? 'GET',
@@ -35,6 +46,28 @@ const request = async (path, options = {}) => {
   }
 
   return response.json()
+}
+
+const downloadExcel = async (path, params = {}) => {
+  const url = `${API_BASE_URL}${path}${buildQueryString(params)}`
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    }
+  })
+
+  if (!response.ok) {
+    let details
+    try {
+      const data = await response.json()
+      details = data?.message ?? response.statusText
+    } catch {
+      details = response.statusText
+    }
+    throw new Error(details || 'Unable to download file')
+  }
+
+  return response.blob()
 }
 
 export const apiClient = {
@@ -93,5 +126,13 @@ export const apiClient = {
   getUsers: () => request('/users'),
 
   // Dashboard
-  getDashboardSummary: () => request('/dashboard/summary')
+  getDashboardSummary: () => request('/dashboard/summary'),
+
+  // Excel exports
+  exportFullInventory: () => downloadExcel('/exports/inventory/full'),
+  exportLowStockInventory: params =>
+    downloadExcel('/exports/inventory/low-stock', params),
+  exportExpiringInventory: params =>
+    downloadExcel('/exports/inventory/expiring-soon', params),
+  exportExpenseReport: params => downloadExcel('/exports/expenses', params)
 }

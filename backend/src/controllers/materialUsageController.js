@@ -14,7 +14,7 @@ const createUsageSchema = z.object({
   usageDate: z
     .string()
     .optional()
-    .transform(value => (value && value.trim() !== '' ? value : undefined)),
+    .transform(value => (value && value.trim() !== '' ? value.trim() : undefined)),
   reason: z
     .string()
     .trim()
@@ -34,14 +34,28 @@ const querySchema = z.object({
     .transform(value => (value && value.trim() !== '' ? value : undefined))
 })
 
+const normalizeUsageDate = value => {
+  if (!value) return null
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!match) {
+    throw new HttpError(400, 'Usage date must be in YYYY-MM-DD format')
+  }
+  return `${match[1]}-${match[2]}-${match[3]} 00:00:00`
+}
+
 export const createMaterialUsage = asyncHandler(async (req, res) => {
   const payload = createUsageSchema.parse(req.body)
 
-  const usageDateObj = payload.usageDate ? new Date(payload.usageDate) : new Date()
-  if (Number.isNaN(usageDateObj.getTime())) {
-    throw new HttpError(400, 'Invalid usage date')
+  let usageDate
+  if (payload.usageDate) {
+    usageDate = normalizeUsageDate(payload.usageDate)
+  } else {
+    const usageDateObj = new Date()
+    if (Number.isNaN(usageDateObj.getTime())) {
+      throw new HttpError(400, 'Invalid usage date')
+    }
+    usageDate = toMySqlDateTime(usageDateObj)
   }
-  const usageDate = toMySqlDateTime(usageDateObj)
 
   const connection = await pool.getConnection()
   try {
