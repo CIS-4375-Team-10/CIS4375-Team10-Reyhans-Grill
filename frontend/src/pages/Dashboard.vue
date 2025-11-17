@@ -94,6 +94,13 @@
           <div class="chart-inner">
             <PieChart :chart-data="pieData" />
           </div>
+          <div v-if="categoryBreakdown.length" class="category-table">
+            <div class="category-row" v-for="entry in categoryBreakdown" :key="entry.label">
+              <span class="category-name">{{ entry.label }}</span>
+              <span class="category-value">{{ formatCategoryValue(entry.value) }}</span>
+            </div>
+          </div>
+          <p v-else class="category-empty">No inventory data yet.</p>
         </div>
       </div>
 
@@ -155,23 +162,37 @@ const formatAlertExpiry = (date) => {
   return date.slice(0, 10)
 }
 
-const pieData = computed(() => {
-  if (!inventoryStore.materials.length) {
-    return fallbackChartData
+const formatCategoryValue = value =>
+  Number(value ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
+
+const categoryBreakdown = computed(() => {
+  const sourceItems = inventoryStore.items.length ? inventoryStore.items : inventoryStore.materials
+  if (!sourceItems.length) {
+    return []
   }
 
-  const counts = inventoryStore.materials.reduce((acc, material) => {
-    const key = material.categoryName ?? 'Other'
-    acc[key] = (acc[key] ?? 0) + Number(material.quantityInStock ?? 0)
+  const totals = sourceItems.reduce((acc, item) => {
+    const key = item.categoryName ?? item.itemType ?? 'Other'
+    acc[key] = (acc[key] ?? 0) + Number(item.quantityInStock ?? 0)
     return acc
   }, {})
 
+  return Object.entries(totals)
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value)
+})
+
+const pieData = computed(() => {
+  if (!categoryBreakdown.value.length) {
+    return fallbackChartData
+  }
+
   return {
-    labels: Object.keys(counts),
+    labels: categoryBreakdown.value.map(entry => entry.label),
     datasets: [
       {
         label: 'Inventory Distribution',
-        data: Object.values(counts),
+        data: categoryBreakdown.value.map(entry => entry.value),
         backgroundColor: chartColors
       }
     ]
@@ -381,6 +402,30 @@ const fallbackChartData = {
   align-items: center;
   justify-content: center;
   min-height: 250px;
+}
+
+.category-table {
+  margin-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.category-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.35rem 0;
+  font-weight: 600;
+  color: #1f4e3d;
+}
+
+.category-value {
+  color: #2563eb;
+}
+
+.category-empty {
+  margin-top: 1rem;
+  text-align: center;
+  color: #6b7280;
+  font-weight: 600;
 }
 
 /* Responsive design */
