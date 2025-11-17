@@ -173,9 +173,17 @@ export const apiClient = {
   },
   createElectronicIncome: payload =>
     request('/finance/electronic-income', { method: 'POST', body: payload }),
+  updateElectronicIncome: (id, payload) =>
+    request(`/finance/electronic-income/${id}`, { method: 'PUT', body: payload }),
+  deleteElectronicIncome: id => request(`/finance/electronic-income/${id}`, { method: 'DELETE' }),
   createCashIncome: payload =>
     request('/finance/cash-income', { method: 'POST', body: payload }),
+  updateCashIncome: (id, payload) =>
+    request(`/finance/cash-income/${id}`, { method: 'PUT', body: payload }),
+  deleteCashIncome: id => request(`/finance/cash-income/${id}`, { method: 'DELETE' }),
   createExpense: payload => request('/finance/expenses', { method: 'POST', body: payload }),
+  updateExpense: (id, payload) => request(`/finance/expenses/${id}`, { method: 'PUT', body: payload }),
+  deleteExpense: id => request(`/finance/expenses/${id}`, { method: 'DELETE' }),
   importFinanceEntries: ({ type, file }) => {
     const formData = new FormData()
     formData.append('type', type)

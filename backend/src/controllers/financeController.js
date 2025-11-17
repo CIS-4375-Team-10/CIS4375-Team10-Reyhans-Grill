@@ -16,6 +16,10 @@ const trackerQuerySchema = z.object({
   to: dateString.optional()
 })
 
+const expenseIdParamSchema = z.object({
+  id: z.coerce.number().int().positive()
+})
+
 const electronicIncomeSchema = z.object({
   incomeDate: dateString,
   channel: z.string().trim().min(1),
@@ -304,6 +308,118 @@ export const createCashIncome = asyncHandler(async (req, res) => {
   res.status(201).json(singleRow(rows))
 })
 
+export const updateElectronicIncome = asyncHandler(async (req, res) => {
+  const { id } = expenseIdParamSchema.parse(req.params)
+  const payload = electronicIncomeSchema.partial().parse(req.body)
+  const entries = Object.entries(payload)
+  if (!entries.length) {
+    throw new HttpError(400, 'No fields provided for update')
+  }
+
+  const mapping = {
+    incomeDate: 'Income_Date',
+    channel: 'Channel',
+    amount: 'Amount',
+    notes: 'Notes'
+  }
+
+  const fields = []
+  const values = []
+  entries.forEach(([key, value]) => {
+    fields.push(`${mapping[key]} = ?`)
+    values.push(value === '' ? null : value)
+  })
+  values.push(id)
+
+  const [result] = await pool.query(
+    `UPDATE Electronic_Income
+        SET ${fields.join(', ')}, Updated_At = NOW()
+      WHERE Electronic_ID = ?`,
+    values
+  )
+
+  if (result.affectedRows === 0) {
+    throw new HttpError(404, 'Electronic income not found')
+  }
+
+  const [rows] = await pool.query(
+    `SELECT Electronic_ID AS electronicIncomeId,
+            Income_Date AS incomeDate,
+            Channel AS paymentType,
+            Amount AS amount,
+            Notes AS notes
+       FROM Electronic_Income
+      WHERE Electronic_ID = ?`,
+    [id]
+  )
+
+  res.json(rows[0])
+})
+
+export const deleteElectronicIncome = asyncHandler(async (req, res) => {
+  const { id } = expenseIdParamSchema.parse(req.params)
+  const [result] = await pool.query(`DELETE FROM Electronic_Income WHERE Electronic_ID = ?`, [id])
+  if (result.affectedRows === 0) {
+    throw new HttpError(404, 'Electronic income not found')
+  }
+  res.status(204).send()
+})
+
+export const updateCashIncome = asyncHandler(async (req, res) => {
+  const { id } = expenseIdParamSchema.parse(req.params)
+  const payload = cashIncomeSchema.partial().parse(req.body)
+  const entries = Object.entries(payload)
+  if (!entries.length) {
+    throw new HttpError(400, 'No fields provided for update')
+  }
+
+  const mapping = {
+    incomeDate: 'Income_Date',
+    amount: 'Amount',
+    notes: 'Notes'
+  }
+
+  const fields = []
+  const values = []
+  entries.forEach(([key, value]) => {
+    fields.push(`${mapping[key]} = ?`)
+    values.push(value === '' ? null : value)
+  })
+  values.push(id)
+
+  const [result] = await pool.query(
+    `UPDATE Cash_Income
+        SET ${fields.join(', ')}, Updated_At = NOW()
+      WHERE Cash_ID = ?`,
+    values
+  )
+
+  if (result.affectedRows === 0) {
+    throw new HttpError(404, 'Cash income not found')
+  }
+
+  const [rows] = await pool.query(
+    `SELECT Cash_ID AS cashIncomeId,
+            Income_Date AS incomeDate,
+            Amount AS amount,
+            Notes AS notes
+       FROM Cash_Income
+      WHERE Cash_ID = ?`,
+    [id]
+  )
+
+  res.json(rows[0])
+})
+
+export const deleteCashIncome = asyncHandler(async (req, res) => {
+  const { id } = expenseIdParamSchema.parse(req.params)
+  const [result] = await pool.query(`DELETE FROM Cash_Income WHERE Cash_ID = ?`, [id])
+  if (result.affectedRows === 0) {
+    throw new HttpError(404, 'Cash income not found')
+  }
+  res.status(204).send()
+})
+
 export const createExpenseEntry = asyncHandler(async (req, res) => {
   const payload = expenseSchema.parse(req.body)
   const [result] = await pool.query(
@@ -538,4 +654,64 @@ export const importFinanceEntries = asyncHandler(async (req, res) => {
     type,
     imported: entries.length
   })
+})
+
+export const updateExpenseEntry = asyncHandler(async (req, res) => {
+  const { id } = expenseIdParamSchema.parse(req.params)
+  const payload = expenseSchema.partial().parse(req.body)
+
+  const entries = Object.entries(payload)
+  if (!entries.length) {
+    throw new HttpError(400, 'No fields provided for update')
+  }
+
+  const mapping = {
+    expenseDate: 'Expense_Date',
+    paymentType: 'Payment_Type',
+    paidTo: 'Paid_To',
+    description: 'Description',
+    amount: 'Amount'
+  }
+
+  const fields = []
+  const values = []
+  entries.forEach(([key, value]) => {
+    fields.push(`${mapping[key]} = ?`)
+    values.push(value === '' ? null : value)
+  })
+  values.push(id)
+
+  const [result] = await pool.query(
+    `UPDATE Expense
+        SET ${fields.join(', ')}, Updated_At = NOW()
+      WHERE Expense_ID = ?`,
+    values
+  )
+
+  if (result.affectedRows === 0) {
+    throw new HttpError(404, 'Expense not found')
+  }
+
+  const [rows] = await pool.query(
+    `SELECT Expense_ID AS expenseId,
+            Expense_Date AS expenseDate,
+            Payment_Type AS paymentType,
+            Paid_To AS paidTo,
+            Description AS description,
+            Amount AS amount
+       FROM Expense
+      WHERE Expense_ID = ?`,
+    [id]
+  )
+
+  res.json(rows[0])
+})
+
+export const deleteExpenseEntry = asyncHandler(async (req, res) => {
+  const { id } = expenseIdParamSchema.parse(req.params)
+  const [result] = await pool.query(`DELETE FROM Expense WHERE Expense_ID = ?`, [id])
+  if (result.affectedRows === 0) {
+    throw new HttpError(404, 'Expense not found')
+  }
+  res.status(204).send()
 })

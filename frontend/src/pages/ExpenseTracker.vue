@@ -104,9 +104,20 @@
             Notes
             <input v-model="electronicForm.notes" placeholder="Optional" />
           </label>
-          <button type="submit" :disabled="saving.electronic">
-            {{ saving.electronic ? 'Saving...' : 'Add Income' }}
-          </button>
+          <div class="entry-actions">
+            <button type="submit" :disabled="saving.electronic">
+              {{ electronicSubmitLabel }}
+            </button>
+            <button
+              v-if="isEditingElectronic"
+              type="button"
+              class="secondary-button"
+              @click="handleCancelElectronicEdit"
+              :disabled="saving.electronic"
+            >
+              Cancel
+            </button>
+          </div>
         </form>
         <p v-if="entryFeedback.electronic.message" :class="['form-status', entryFeedback.electronic.type]">
           {{ entryFeedback.electronic.message }}
@@ -128,9 +139,20 @@
             Notes
             <input v-model="cashForm.notes" placeholder="Optional" />
           </label>
-          <button type="submit" :disabled="saving.cash">
-            {{ saving.cash ? 'Saving...' : 'Add Cash Income' }}
-          </button>
+          <div class="entry-actions">
+            <button type="submit" :disabled="saving.cash">
+              {{ cashSubmitLabel }}
+            </button>
+            <button
+              v-if="isEditingCash"
+              type="button"
+              class="secondary-button"
+              @click="handleCancelCashEdit"
+              :disabled="saving.cash"
+            >
+              Cancel
+            </button>
+          </div>
         </form>
         <p v-if="entryFeedback.cash.message" :class="['form-status', entryFeedback.cash.type]">
           {{ entryFeedback.cash.message }}
@@ -160,9 +182,20 @@
             Amount
             <input type="number" step="0.01" min="0" v-model.number="expenseForm.amount" required />
           </label>
-          <button type="submit" :disabled="saving.expense">
-            {{ saving.expense ? 'Saving...' : 'Add Expense' }}
-          </button>
+          <div class="entry-actions">
+            <button type="submit" :disabled="saving.expense">
+              {{ expenseSubmitLabel }}
+            </button>
+            <button
+              v-if="isEditingExpense"
+              type="button"
+              class="secondary-button"
+              @click="handleCancelEditExpense"
+              :disabled="saving.expense"
+            >
+              Cancel
+            </button>
+          </div>
         </form>
         <p v-if="entryFeedback.expense.message" :class="['form-status', entryFeedback.expense.type]">
           {{ entryFeedback.expense.message }}
@@ -217,6 +250,7 @@
               <th>Channel</th>
               <th>Amount</th>
               <th>Notes</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -225,9 +259,24 @@
               <td>{{ row.paymentType }}</td>
               <td>{{ formatCurrency(row.amount) }}</td>
               <td>{{ row.notes || '-' }}</td>
+              <td>
+                <div class="table-actions">
+                  <button class="table-action" type="button" @click="handleEditElectronicIncome(row)">
+                    Edit
+                  </button>
+                  <button
+                    class="table-action danger"
+                    type="button"
+                    @click="handleDeleteElectronicIncome(row)"
+                    :disabled="deletingElectronicId === row.electronicIncomeId"
+                  >
+                    {{ deletingElectronicId === row.electronicIncomeId ? 'Deleting...' : 'Delete' }}
+                  </button>
+                </div>
+              </td>
             </tr>
             <tr v-if="!tracker.electronicIncome.rows.length">
-              <td colspan="4" class="status-message">No electronic income in range.</td>
+              <td colspan="5" class="status-message">No electronic income in range.</td>
             </tr>
           </tbody>
         </table>
@@ -244,6 +293,7 @@
               <th>Date</th>
               <th>Amount</th>
               <th>Notes</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -251,9 +301,24 @@
               <td>{{ formatDate(row.incomeDate) }}</td>
               <td>{{ formatCurrency(row.amount) }}</td>
               <td>{{ row.notes || '-' }}</td>
+              <td>
+                <div class="table-actions">
+                  <button class="table-action" type="button" @click="handleEditCashIncome(row)">
+                    Edit
+                  </button>
+                  <button
+                    class="table-action danger"
+                    type="button"
+                    @click="handleDeleteCashIncome(row)"
+                    :disabled="deletingCashId === row.cashIncomeId"
+                  >
+                    {{ deletingCashId === row.cashIncomeId ? 'Deleting...' : 'Delete' }}
+                  </button>
+                </div>
+              </td>
             </tr>
             <tr v-if="!tracker.cashIncome.rows.length">
-              <td colspan="3" class="status-message">No cash income in range.</td>
+              <td colspan="4" class="status-message">No cash income in range.</td>
             </tr>
           </tbody>
         </table>
@@ -277,6 +342,7 @@
               <th>Description</th>
               <th>Source</th>
               <th>Amount</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -291,9 +357,25 @@
                 </span>
               </td>
               <td>{{ formatCurrency(row.amount) }}</td>
+              <td>
+                <div v-if="row.source === 'manual'" class="table-actions">
+                  <button class="table-action" type="button" @click="handleEditExpense(row)">
+                    Edit
+                  </button>
+                  <button
+                    class="table-action danger"
+                    type="button"
+                    @click="handleDeleteExpense(row)"
+                    :disabled="deletingExpenseId === row.expenseId"
+                  >
+                    {{ deletingExpenseId === row.expenseId ? 'Deleting...' : 'Delete' }}
+                  </button>
+                </div>
+                <span v-else class="muted-text">Auto</span>
+              </td>
             </tr>
             <tr v-if="!tracker.expenses.rows.length">
-              <td colspan="6" class="status-message">No expenses in range.</td>
+              <td colspan="7" class="status-message">No expenses in range.</td>
             </tr>
           </tbody>
         </table>
@@ -303,7 +385,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 
 import { apiClient } from '../services/apiClient'
 
@@ -332,12 +414,16 @@ const electronicForm = reactive({
   amount: null,
   notes: ''
 })
+const editingElectronicId = ref(null)
+const deletingElectronicId = ref(null)
 
 const cashForm = reactive({
   incomeDate: getToday(),
   amount: null,
   notes: ''
 })
+const editingCashId = ref(null)
+const deletingCashId = ref(null)
 
 const expenseForm = reactive({
   expenseDate: getToday(),
@@ -346,6 +432,8 @@ const expenseForm = reactive({
   description: '',
   amount: null
 })
+const editingExpenseId = ref(null)
+const deletingExpenseId = ref(null)
 
 const importForm = reactive({
   type: 'expenses',
@@ -365,6 +453,31 @@ const entryFeedback = reactive({
   cash: { type: '', message: '' },
   expense: { type: '', message: '' },
   import: { type: '', message: '' }
+})
+
+const isEditingExpense = computed(() => Boolean(editingExpenseId.value))
+const isEditingElectronic = computed(() => Boolean(editingElectronicId.value))
+const isEditingCash = computed(() => Boolean(editingCashId.value))
+
+const expenseSubmitLabel = computed(() => {
+  if (saving.expense) {
+    return isEditingExpense.value ? 'Updating...' : 'Saving...'
+  }
+  return isEditingExpense.value ? 'Update Expense' : 'Add Expense'
+})
+
+const electronicSubmitLabel = computed(() => {
+  if (saving.electronic) {
+    return isEditingElectronic.value ? 'Updating...' : 'Saving...'
+  }
+  return isEditingElectronic.value ? 'Update Income' : 'Add Income'
+})
+
+const cashSubmitLabel = computed(() => {
+  if (saving.cash) {
+    return isEditingCash.value ? 'Updating...' : 'Saving...'
+  }
+  return isEditingCash.value ? 'Update Income' : 'Add Income'
 })
 
 const setFeedback = (key, type, message) => {
@@ -465,12 +578,14 @@ const resetElectronicForm = () => {
   electronicForm.channel = 'Card'
   electronicForm.amount = null
   electronicForm.notes = ''
+  editingElectronicId.value = null
 }
 
 const resetCashForm = () => {
   cashForm.incomeDate = getToday()
   cashForm.amount = null
   cashForm.notes = ''
+  editingCashId.value = null
 }
 
 const resetExpenseForm = () => {
@@ -479,6 +594,7 @@ const resetExpenseForm = () => {
   expenseForm.paidTo = ''
   expenseForm.description = ''
   expenseForm.amount = null
+  editingExpenseId.value = null
 }
 
 const submitElectronicIncome = async () => {
@@ -489,13 +605,19 @@ const submitElectronicIncome = async () => {
   }
   try {
     saving.electronic = true
-    await apiClient.createElectronicIncome({
+    const payload = {
       incomeDate: electronicForm.incomeDate,
       channel: electronicForm.channel.trim(),
       amount: Number(electronicForm.amount),
       notes: electronicForm.notes || undefined
-    })
-    setFeedback('electronic', 'success', 'Electronic income added.')
+    }
+    if (isEditingElectronic.value) {
+      await apiClient.updateElectronicIncome(editingElectronicId.value, payload)
+      setFeedback('electronic', 'success', 'Electronic income updated.')
+    } else {
+      await apiClient.createElectronicIncome(payload)
+      setFeedback('electronic', 'success', 'Electronic income added.')
+    }
     resetElectronicForm()
     await fetchTracker()
   } catch (error) {
@@ -513,18 +635,83 @@ const submitCashIncome = async () => {
   }
   try {
     saving.cash = true
-    await apiClient.createCashIncome({
+    const payload = {
       incomeDate: cashForm.incomeDate,
       amount: Number(cashForm.amount),
       notes: cashForm.notes || undefined
-    })
-    setFeedback('cash', 'success', 'Cash income added.')
+    }
+    if (isEditingCash.value) {
+      await apiClient.updateCashIncome(editingCashId.value, payload)
+      setFeedback('cash', 'success', 'Cash income updated.')
+    } else {
+      await apiClient.createCashIncome(payload)
+      setFeedback('cash', 'success', 'Cash income added.')
+    }
     resetCashForm()
     await fetchTracker()
   } catch (error) {
     setFeedback('cash', 'error', error.message ?? 'Unable to add cash income.')
   } finally {
     saving.cash = false
+  }
+}
+
+const handleEditElectronicIncome = row => {
+  editingElectronicId.value = row.electronicIncomeId
+  electronicForm.incomeDate = row.incomeDate ? row.incomeDate.slice(0, 10) : getToday()
+  electronicForm.channel = row.paymentType || 'Card'
+  electronicForm.amount = Number(row.amount ?? 0)
+  electronicForm.notes = row.notes || ''
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+const handleCancelElectronicEdit = () => {
+  resetElectronicForm()
+}
+
+const handleDeleteElectronicIncome = async row => {
+  const confirmed = window.confirm(`Delete ${row.paymentType} entry on ${formatDate(row.incomeDate)}?`)
+  if (!confirmed) return
+  try {
+    deletingElectronicId.value = row.electronicIncomeId
+    await apiClient.deleteElectronicIncome(row.electronicIncomeId)
+    if (editingElectronicId.value === row.electronicIncomeId) {
+      resetElectronicForm()
+    }
+    await fetchTracker()
+  } catch (error) {
+    setFeedback('electronic', 'error', error.message ?? 'Unable to delete electronic income.')
+  } finally {
+    deletingElectronicId.value = null
+  }
+}
+
+const handleEditCashIncome = row => {
+  editingCashId.value = row.cashIncomeId
+  cashForm.incomeDate = row.incomeDate ? row.incomeDate.slice(0, 10) : getToday()
+  cashForm.amount = Number(row.amount ?? 0)
+  cashForm.notes = row.notes || ''
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+const handleCancelCashEdit = () => {
+  resetCashForm()
+}
+
+const handleDeleteCashIncome = async row => {
+  const confirmed = window.confirm(`Delete cash entry on ${formatDate(row.incomeDate)}?`)
+  if (!confirmed) return
+  try {
+    deletingCashId.value = row.cashIncomeId
+    await apiClient.deleteCashIncome(row.cashIncomeId)
+    if (editingCashId.value === row.cashIncomeId) {
+      resetCashForm()
+    }
+    await fetchTracker()
+  } catch (error) {
+    setFeedback('cash', 'error', error.message ?? 'Unable to delete cash income.')
+  } finally {
+    deletingCashId.value = null
   }
 }
 
@@ -541,20 +728,59 @@ const submitExpense = async () => {
   }
   try {
     saving.expense = true
-    await apiClient.createExpense({
+    const payload = {
       expenseDate: expenseForm.expenseDate,
       paymentType: expenseForm.paymentType.trim(),
       paidTo: expenseForm.paidTo.trim(),
       description: expenseForm.description || undefined,
       amount: Number(expenseForm.amount)
-    })
-    setFeedback('expense', 'success', 'Expense recorded.')
+    }
+    if (isEditingExpense.value) {
+      await apiClient.updateExpense(editingExpenseId.value, payload)
+      setFeedback('expense', 'success', 'Expense updated.')
+    } else {
+      await apiClient.createExpense(payload)
+      setFeedback('expense', 'success', 'Expense recorded.')
+    }
     resetExpenseForm()
     await fetchTracker()
   } catch (error) {
     setFeedback('expense', 'error', error.message ?? 'Unable to add expense.')
   } finally {
     saving.expense = false
+  }
+}
+
+const handleEditExpense = row => {
+  if (row.source !== 'manual') return
+  editingExpenseId.value = row.expenseId
+  expenseForm.expenseDate = row.expenseDate ? row.expenseDate.slice(0, 10) : getToday()
+  expenseForm.paymentType = row.paymentType || 'CHASE'
+  expenseForm.paidTo = row.paidTo || ''
+  expenseForm.description = row.description || ''
+  expenseForm.amount = Number(row.amount ?? 0)
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+const handleCancelEditExpense = () => {
+  resetExpenseForm()
+}
+
+const handleDeleteExpense = async row => {
+  if (row.source !== 'manual') return
+  const confirmDelete = window.confirm(`Delete expense for ${row.paidTo}?`)
+  if (!confirmDelete) return
+  try {
+    deletingExpenseId.value = row.expenseId
+    await apiClient.deleteExpense(row.expenseId)
+    if (editingExpenseId.value === row.expenseId) {
+      resetExpenseForm()
+    }
+    await fetchTracker()
+  } catch (error) {
+    setFeedback('expense', 'error', error.message ?? 'Unable to delete expense.')
+  } finally {
+    deletingExpenseId.value = null
   }
 }
 
@@ -809,6 +1035,22 @@ onMounted(() => {
   gap: 0.75rem;
 }
 
+.entry-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.entry-form .secondary-button {
+  background-color: #e5e7eb;
+  color: #1f2937;
+}
+
+.entry-form .secondary-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .entry-form label {
   display: flex;
   flex-direction: column;
@@ -959,6 +1201,37 @@ th {
 
 .status-message.error {
   color: #b91c1c;
+}
+
+.table-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.table-action {
+  background-color: #e5e7eb;
+  border: none;
+  padding: 0.3rem 0.75rem;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #1f2937;
+}
+
+.table-action.danger {
+  background-color: #fca5a5;
+  color: #7f1d1d;
+}
+
+.table-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.muted-text {
+  color: #9ca3af;
+  font-style: italic;
 }
 
 @media (max-width: 768px) {
