@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import logo from '@/assets/ReyhansGrillFinal.png'   // ← IMPORT YOUR IMAGE
 
 const router = useRouter()
 const username = ref('')
@@ -17,25 +18,34 @@ function login() {
     
     router.push('/dashboard')
   } else {
-    error.value = 'Invalid credentials.';
+    error.value = 'Invalid credentials.'
   }
 }
 </script>
 
 <template>
   <div class="login-container">
+
+    <!-- LOGO IMAGE -->
+    <img :src="logo" alt="Reyhans Grill Logo" class="logo-img" />
+
     <p class="brand-title">Reyhan's Grill I.M.S</p>
+
     <form @submit.prevent="login" class="login-form">
       <h2>Login</h2>
+      
       <div class="form-group">
         <label>Username:</label>
         <input type="text" v-model="username" required>
       </div>
+
       <div class="form-group">
         <label>Password:</label>
         <input type="password" v-model="password" required>
       </div>
+
       <button type="submit">Login</button>
+
       <p v-if="error" class="error">{{ error }}</p>
     </form>
   </div>
@@ -52,6 +62,14 @@ function login() {
   flex-direction: column;
   gap: 1.5rem;
   background-color: #f7f3ef;
+}
+
+/* LOGO STYLE */
+.logo-img {
+  width: 180px;
+  height: auto;
+  border-radius: 10px;
+  margin-bottom: -1rem;
 }
 
 .brand-title {
@@ -104,12 +122,5 @@ button:hover {
 .error {
   color: red;
   margin-top: 1rem;
-}
-
-.hint {
-  color: #666;
-  font-size: 0.9rem;
-  margin-top: 1rem;
-  text-align: center;
 }
 </style>
