@@ -1,13 +1,15 @@
 import { getPool } from '../db/pool.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
+import { getInventorySettings } from '../services/settingsService.js'
 
 const pool = getPool()
 
 const utensilCategoryIds = ['CAT_COOK', 'CAT_SERVE', 'CAT_BAKE', 'CAT_CUT', 'CAT_STORE']
 
 export const getDashboardSummary = asyncHandler(async (req, res) => {
-  const threshold = Number(req.query.lowStock ?? 10)
-  const horizonDays = Number(req.query.expiringInDays ?? 7)
+  const settings = await getInventorySettings()
+  const threshold = Number(req.query.lowStock ?? settings.lowStockThreshold)
+  const horizonDays = Number(req.query.expiringInDays ?? settings.expiringSoonDays)
 
   const [[itemStats]] = await pool.query(
     `SELECT COUNT(*) AS totalItems,
@@ -20,24 +22,27 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
     `SELECT i.Item_ID AS itemId,
             i.Item_Name AS itemName,
             i.Quantity_in_Stock AS quantityInStock,
-            c.Category_Name AS categoryName
+            i.Unit AS unit,
+            c.Category_Name AS categoryName,
+            COALESCE(i.Low_Stock_Threshold, ?) AS thresholdUsed
        FROM Item i
        JOIN Category c ON c.Category_ID = i.Category_ID
       WHERE i.Is_Deleted = 0
-        AND i.Quantity_in_Stock <= ?
+        AND i.Quantity_in_Stock <= COALESCE(i.Low_Stock_Threshold, ?)
       ORDER BY i.Quantity_in_Stock ASC, i.Item_Name ASC
       LIMIT 10`,
-    [threshold]
+    [threshold, threshold]
   )
 
   const [lowStockCutlery] = await pool.query(
     `SELECT i.Item_ID AS itemId,
             i.Item_Name AS itemName,
-            i.Quantity_in_Stock AS quantityInStock
+            i.Quantity_in_Stock AS quantityInStock,
+            i.Unit AS unit
        FROM Item i
       WHERE i.Is_Deleted = 0
         AND i.Category_ID = 'CAT_CUT'
-        AND i.Quantity_in_Stock <= ?
+        AND i.Quantity_in_Stock <= COALESCE(i.Low_Stock_Threshold, ?)
       ORDER BY i.Quantity_in_Stock ASC, i.Item_Name ASC`,
     [threshold]
   )
@@ -45,11 +50,12 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
   const [lowStockServing] = await pool.query(
     `SELECT i.Item_ID AS itemId,
             i.Item_Name AS itemName,
-            i.Quantity_in_Stock AS quantityInStock
+            i.Quantity_in_Stock AS quantityInStock,
+            i.Unit AS unit
        FROM Item i
       WHERE i.Is_Deleted = 0
         AND i.Category_ID = 'CAT_SERVE'
-        AND i.Quantity_in_Stock <= ?
+        AND i.Quantity_in_Stock <= COALESCE(i.Low_Stock_Threshold, ?)
       ORDER BY i.Quantity_in_Stock ASC, i.Item_Name ASC`,
     [threshold]
   )
@@ -58,13 +64,16 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
     `SELECT i.Item_ID AS itemId,
             i.Item_Name AS itemName,
             i.Quantity_in_Stock AS quantityInStock,
-            i.Expiration_Date AS expirationDate
+            i.Unit AS unit,
+            i.Purchase_Date AS purchaseDate,
+            i.Expiration_Date AS expirationDate,
+            COALESCE(i.Expiring_Soon_Days, ?) AS expiringWindowDays
        FROM Item i
       WHERE i.Is_Deleted = 0
         AND i.Expiration_Date IS NOT NULL
-        AND i.Expiration_Date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)
+        AND i.Expiration_Date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL COALESCE(i.Expiring_Soon_Days, ?) DAY)
       ORDER BY i.Expiration_Date ASC`,
-    [horizonDays]
+    [horizonDays, horizonDays]
   )
 
   const utensilPlaceholders = utensilCategoryIds.map(() => '?').join(', ')
@@ -91,6 +100,7 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
     lowStockCutlery,
     lowStockServing,
     utensilsInUse: Number(utensilStats.utensilsInUse) || 0,
-    recentSpend: Number(spendStats.recentSpend) || 0
+    recentSpend: Number(spendStats.recentSpend) || 0,
+    inventorySettings: settings
   })
 })

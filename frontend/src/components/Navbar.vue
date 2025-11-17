@@ -11,6 +11,8 @@
       <li><router-link to="/dashboard">Dashboard</router-link></li>
       <li><router-link to="/materials">Materials</router-link></li>
       <li><router-link to="/reports">Reports</router-link></li>
+      <li><router-link to="/expenses">Expense Tracker</router-link></li>
+      <li><router-link to="/materials-used">Materials Used</router-link></li>
       <li><button class="logout-btn" @click="logout">Logout</button></li>
     </ul>
   </nav>
@@ -20,6 +22,8 @@
 import { ref, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 
+import { apiClient } from '../services/apiClient'
+
 const router = useRouter()
 const isAuthenticated = ref(localStorage.getItem('isAuthenticated') === 'true')
 
@@ -28,10 +32,17 @@ watchEffect(() => {
   isAuthenticated.value = localStorage.getItem('isAuthenticated') === 'true'
 })
 
-function logout() {
-  localStorage.removeItem('isAuthenticated')
-  window.dispatchEvent(new Event('authChange'))
-  router.push('/login')
+const logout = async () => {
+  try {
+    await apiClient.logout()
+  } catch (error) {
+    console.error(error)
+  } finally {
+    localStorage.removeItem('isAuthenticated')
+    localStorage.removeItem('sessionToken')
+    window.dispatchEvent(new Event('authChange'))
+    router.push('/login')
+  }
 }
 </script>
 

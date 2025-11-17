@@ -6,7 +6,8 @@
         <h2>Inventory Expenses</h2>
 
         <!-- YEAR SELECTOR  ----------------------->
-        <select v-model="selectedYear" class="year-select">
+        <select v-model="selectedYear" class="year-select" :disabled="!availableYears.length">
+          <option v-if="!availableYears.length" value="" disabled>No data</option>
           <option v-for="year in availableYears" :key="year" :value="year">
             {{ year }}
           </option>
@@ -36,93 +37,138 @@
 <script setup>
 import { Bar } from 'vue-chartjs'
 import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js'
-import { ref, computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useInventoryStore } from '../stores/inventoryStore'
 
 ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale)
 
-// ---------- FILTERS ------------
-const timePeriods = ["Day", "Week", "Month", "Year"]
-const selectedPeriod = ref("Week")
-const selectedYear = ref(2025)
+const inventoryStore = useInventoryStore()
 
-const availableYears = [2023, 2024, 2025]
+const timePeriods = ['Day', 'Week', 'Month', 'Year']
+const selectedPeriod = ref('Week')
+const selectedYear = ref(null)
 
-// ---------- MOCK EXPENSE DATA (3 YEARS) ----------
-const mockExpenseData = {
-  2023: {
-    Day: {
-      labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-      data: [220, 180, 260, 210, 300, 280, 240]
-    },
-    Week: {
-      labels: ["W1", "W2", "W3", "W4"],
-      data: [900, 760, 1200, 950]
-    },
-    Month: {
-      labels: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
-      data: [4200, 3800, 5100, 4700, 6000, 5800, 5200, 5400, 5000, 5900, 6200, 7000]
-    },
-    Year: {
-      labels: ["2023"],
-      data: [68000]   // 👈 Added this so 2023 shows properly
-    }
-  },
+const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-  2024: {
-    Day: {
-      labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-      data: [260, 300, 350, 280, 420, 410, 390]
-    },
-    Week: {
-      labels: ["W1", "W2", "W3", "W4"],
-      data: [1100, 1000, 1450, 1320]
-    },
-    Month: {
-      labels: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
-      data: [5000, 4800, 6500, 5900, 7200, 6900, 6300, 6700, 6200, 7100, 7400, 8200]
-    },
-    Year: {
-      labels: ["2024"],
-      data: [72000]
-    }
-  },
-
-  2025: {
-    Day: {
-      labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-      data: [320, 280, 410, 350, 520, 480, 390]
-    },
-    Week: {
-      labels: ["W1", "W2", "W3", "W4"],
-      data: [1250, 980, 1560, 1320]
-    },
-    Month: {
-      labels: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
-      data: [5200, 4800, 6100, 5500, 7200, 6800, 5900, 6300, 5800, 6700, 7100, 8000]
-    },
-    Year: {
-      labels: ["2025"],
-      data: [78000]
-    }
+onMounted(() => {
+  if (!inventoryStore.items.length && !inventoryStore.loading.items) {
+    inventoryStore.fetchItems().catch(error => console.error(error))
   }
+})
+
+const inventoryItems = computed(() => inventoryStore.items ?? [])
+
+const parseDate = (value) => {
+  if (!value) return null
+  const normalized = value.includes('T') ? value : `${value}T00:00:00`
+  const date = new Date(normalized)
+  return Number.isNaN(date.getTime()) ? null : date
 }
 
+const availableYears = computed(() => {
+  const years = Array.from(
+    new Set(
+      inventoryItems.value
+        .map(item => parseDate(item.purchaseDate)?.getFullYear())
+        .filter(Boolean)
+    )
+  ).sort((a, b) => a - b)
+  return years
+})
 
-// ---------- COMPUTED CHART DATA ----------
-const chartData = computed(() => {
-  const year = selectedYear.value
-  const period = selectedPeriod.value
+watch(availableYears, years => {
+  if (!years.length) {
+    selectedYear.value = null
+    return
+  }
+  if (!selectedYear.value || !years.includes(selectedYear.value)) {
+    selectedYear.value = years[years.length - 1]
+  }
+}, { immediate: true })
 
-  const dataGroup = mockExpenseData[year][period]
+const filteredRecords = computed(() => {
+  if (!selectedYear.value) return []
+  return inventoryItems.value
+    .map(item => {
+      const date = parseDate(item.purchaseDate)
+      const amount =
+        Number(item.unitCost ?? 0) * Number(item.quantityInStock ?? 0)
+      return {
+        itemId: item.itemId,
+        date,
+        amount: Number.isFinite(amount) ? amount : 0
+      }
+    })
+    .filter(record => record.date && !Number.isNaN(record.date.getTime()) && record.date.getFullYear() === selectedYear.value && record.amount > 0)
+})
+
+const getIsoWeekNumber = (date) => {
+  const target = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNumber = target.getUTCDay() || 7
+  target.setUTCDate(target.getUTCDate() + 4 - dayNumber)
+  const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1))
+  return Math.ceil(((target - yearStart) / 86400000 + 1) / 7)
+}
+
+const totalsByPeriod = computed(() => {
+  const dayTotals = Array(7).fill(0)
+  const monthTotals = Array(12).fill(0)
+  const weekTotals = new Map()
+  let yearTotal = 0
+
+  filteredRecords.value.forEach(record => {
+    const date = record.date
+    const cost = record.amount
+
+    const weekday = (date.getDay() + 6) % 7
+    dayTotals[weekday] += cost
+
+    monthTotals[date.getMonth()] += cost
+
+    const week = getIsoWeekNumber(date)
+    weekTotals.set(week, (weekTotals.get(week) ?? 0) + cost)
+
+    yearTotal += cost
+  })
+
+  const weekLabels = Array.from(weekTotals.keys()).sort((a, b) => a - b)
+  const weekData = weekLabels.map(week => Number(weekTotals.get(week).toFixed(2)))
 
   return {
-    labels: dataGroup.labels,
+    Day: {
+      labels: DAY_LABELS,
+      data: dayTotals.map(value => Number(value.toFixed(2)))
+    },
+    Week: {
+      labels: weekLabels.map(week => `W${week}`),
+      data: weekData
+    },
+    Month: {
+      labels: MONTH_LABELS,
+      data: monthTotals.map(value => Number(value.toFixed(2)))
+    },
+    Year: {
+      labels: selectedYear.value ? [String(selectedYear.value)] : [],
+      data: selectedYear.value ? [Number(yearTotal.toFixed(2))] : []
+    }
+  }
+})
+
+const chartData = computed(() => {
+  const period = selectedPeriod.value
+  const dataset = totalsByPeriod.value[period] ?? { labels: [], data: [] }
+  const labels = dataset.labels.length ? dataset.labels : ['No data']
+  const data = dataset.labels.length ? dataset.data : [0]
+
+  return {
+    labels,
     datasets: [
       {
-        label: "Cost ($)",
-        data: dataGroup.data,
-        backgroundColor: "#2f7057",
-        borderColor: "#2f7057",
+        label: 'Cost ($)',
+        data,
+        backgroundColor: '#2f7057',
+        borderColor: '#2f7057',
         borderWidth: 1,
         borderRadius: 8
       }
@@ -130,7 +176,6 @@ const chartData = computed(() => {
   }
 })
 
-// ---------- CHART OPTIONS ----------
 const chartOptions = {
   responsive: true,
   maintainAspectRatio: false,
@@ -138,21 +183,22 @@ const chartOptions = {
     legend: { display: false },
     tooltip: {
       callbacks: {
-        label: (context) => `$${context.parsed.y}`
+        label: context => `$${context.parsed.y}`
       }
     }
   },
   scales: {
     y: {
       beginAtZero: true,
-      ticks: { callback: value => "$" + value },
-      grid: { color: "rgba(0,0,0,0.1)" }
+      ticks: { callback: value => `$${value}` },
+      grid: { color: 'rgba(0,0,0,0.1)' }
     },
     x: {
-      grid: { color: "rgba(0,0,0,0.1)" }
+      grid: { color: 'rgba(0,0,0,0.1)' }
     }
   }
 }
+
 </script>
 
 <style scoped>

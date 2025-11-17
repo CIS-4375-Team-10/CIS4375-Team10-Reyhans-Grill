@@ -30,9 +30,133 @@
     </div>
     <div v-else class="status-message">Loading report data...</div>
 
+    <section class="settings-card" v-if="inventorySettings">
+      <h3>Report Settings</h3>
+      <form class="settings-form" @submit.prevent="saveInventorySettings">
+        <label>
+          Low Stock Threshold (qty)
+          <input
+            type="number"
+            min="1"
+            v-model.number="settingsForm.lowStockThreshold"
+            required
+          />
+        </label>
+        <label>
+          Expiring Soon (days)
+          <input
+            type="number"
+            min="1"
+            v-model.number="settingsForm.expiringSoonDays"
+            required
+          />
+        </label>
+        <button type="submit" :disabled="savingSettings">
+          {{ savingSettings ? 'Saving...' : 'Save Settings' }}
+        </button>
+      </form>
+      <p v-if="settingsStatus" class="settings-status">{{ settingsStatus }}</p>
+    </section>
+
+    <section class="export-card" v-if="inventorySettings">
+      <h3>Excel Exports</h3>
+      <p class="section-subtitle">
+        Download inventory snapshots or an expense summary that match your current report settings.
+      </p>
+
+      <div class="export-grid">
+        <div class="export-panel">
+          <h4>Inventory Snapshots</h4>
+          <p class="export-text">
+            Use your saved thresholds or override them for this download only.
+          </p>
+          <div class="export-row">
+            <button
+              class="export-button primary"
+              @click="handleExportFullInventory"
+              :disabled="exporting.fullInventory"
+            >
+              {{ exporting.fullInventory ? 'Exporting...' : 'Full Inventory' }}
+            </button>
+          </div>
+          <div class="export-row">
+            <label>
+              Low Stock Threshold
+              <input
+                type="number"
+                min="1"
+                v-model.number="exportFilters.lowStockThreshold"
+                placeholder="Use saved value"
+              />
+            </label>
+            <button
+              class="export-button"
+              @click="handleExportLowStock"
+              :disabled="exporting.lowStock"
+            >
+              {{ exporting.lowStock ? 'Exporting...' : 'Low Stock Only' }}
+            </button>
+          </div>
+          <div class="export-row">
+            <label>
+              Expiring Soon (days)
+              <input
+                type="number"
+                min="1"
+                v-model.number="exportFilters.expiringInDays"
+                placeholder="Use saved value"
+              />
+            </label>
+            <button
+              class="export-button"
+              @click="handleExportExpiringSoon"
+              :disabled="exporting.expiringSoon"
+            >
+              {{ exporting.expiringSoon ? 'Exporting...' : 'Expiring Soon' }}
+            </button>
+          </div>
+          <p class="export-hint">Leave the overrides blank to use the saved settings.</p>
+        </div>
+
+        <div class="export-panel">
+          <h4>Expense Report</h4>
+          <p class="export-text">
+            Choose the date range and grouping period you want to export.
+          </p>
+          <div class="export-row">
+            <label>
+              Start Date
+              <input type="date" v-model="reportFilters.startDate" />
+            </label>
+            <label>
+              End Date
+              <input type="date" v-model="reportFilters.endDate" />
+            </label>
+          </div>
+          <div class="export-row">
+            <label>
+              Period
+              <select v-model="reportFilters.period">
+                <option v-for="option in periodOptions" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+            </label>
+          </div>
+          <button
+            class="export-button primary"
+            @click="handleExportExpenseReport"
+            :disabled="exporting.expense"
+          >
+            {{ exporting.expense ? 'Exporting...' : 'Export Expense Report' }}
+          </button>
+        </div>
+      </div>
+    </section>
+
     <!-- Low Stock Table -->
     <div class="table-container" v-if="lowStock.length">
-      <h3>Low Stock Items (qty <= 10)</h3>
+      <h3>Low Stock Items (qty <= {{ lowStockThresholdLabel }})</h3>
       <table>
         <thead>
           <tr>
@@ -44,7 +168,7 @@
         <tbody>
           <tr v-for="item in lowStock" :key="item.itemId">
             <td>{{ item.itemName }}</td>
-            <td>{{ item.quantityInStock }}</td>
+            <td>{{ formatQuantityWithUnit(item.quantityInStock, item.unit) }}</td>
             <td>{{ item.categoryName }}</td>
           </tr>
         </tbody>
@@ -53,20 +177,22 @@
 
     <!-- Expiring Soon Table -->
     <div class="table-container" v-if="expiringSoon.length">
-      <h3>Expiring Soon (next 7 days)</h3>
+      <h3>Expiring Soon (next {{ expiringSoonDaysLabel }} days)</h3>
       <table>
         <thead>
           <tr>
             <th>Material</th>
             <th>Qty</th>
+            <th>Purchase Date</th>
             <th>Expiration Date</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="item in expiringSoon" :key="item.itemId">
             <td>{{ item.itemName }}</td>
-            <td>{{ item.quantityInStock }}</td>
-            <td>{{ item.expirationDate }}</td>
+            <td>{{ formatQuantityWithUnit(item.quantityInStock, item.unit) }}</td>
+            <td>{{ formatDate(item.purchaseDate) }}</td>
+            <td>{{ formatDate(item.expirationDate) }}</td>
           </tr>
         </tbody>
       </table>
@@ -87,13 +213,16 @@
         </thead>
         <tbody>
           <tr v-for="item in deletedItems" :key="item.itemId">
-            <td>{{ item.itemName }}</td>
-            <td>{{ item.quantityInStock }}</td>
+           <td>{{ item.itemName }}</td>
+            <td>{{ formatQuantityWithUnit(item.quantityInStock, item.unit) }}</td>
             <td>{{ item.categoryName }}</td>
             <td>{{ formatDate(item.deletedAt) }}</td>
-            <td>
+            <td class="deleted-actions">
               <button class="restore-button" @click="handleRestore(item)">
                 Undo Delete
+              </button>
+              <button class="purge-button" @click="handlePermanentDelete(item)">
+                Delete Permanently
               </button>
             </td>
           </tr>
@@ -101,75 +230,13 @@
       </table>
     </div>
 
-    <section class="custom-report-card">
-      <h3>Custom Inventory & Expense Report</h3>
-      <p class="section-subtitle">
-        Choose a date range and grouping period to pull inventory usage and expense totals.
-      </p>
-      <form class="custom-report-form" @submit.prevent="runCustomReport">
-        <label>
-          Start Date
-          <input type="date" v-model="reportFilters.startDate" />
-        </label>
-        <label>
-          End Date
-          <input type="date" v-model="reportFilters.endDate" />
-        </label>
-        <label>
-          Period
-          <select v-model="reportFilters.period">
-            <option v-for="option in periodOptions" :key="option.value" :value="option.value">
-              {{ option.label }}
-            </option>
-          </select>
-        </label>
-        <button class="run-report-btn" type="submit" :disabled="loadingCustomReport">
-          {{ loadingCustomReport ? 'Loading...' : 'Run Report' }}
-        </button>
-      </form>
-      <p v-if="customReportError" class="error-message">{{ customReportError }}</p>
-    </section>
-
-    <div class="table-container" v-if="customReport">
-      <h3>Report Results</h3>
-      <div v-if="customReport.points.length" class="cards compact-cards">
-        <div class="card">
-          <h4>Total Items Used</h4>
-          <p>{{ customReport.totals.totalUsedItems }}</p>
-        </div>
-        <div class="card">
-          <h4>Total Spend</h4>
-          <p>{{ formatCurrency(customReport.totals.totalSpent) }}</p>
-        </div>
-      </div>
-      <table v-if="customReport.points.length">
-        <thead>
-          <tr>
-            <th>Period</th>
-            <th>Start</th>
-            <th>End</th>
-            <th>Items Used</th>
-            <th>Total Spent</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="point in customReport.points" :key="point.bucket">
-            <td>{{ point.label }}</td>
-            <td>{{ point.rangeStart }}</td>
-            <td>{{ point.rangeEnd }}</td>
-            <td>{{ point.totalUsedItems }}</td>
-            <td>{{ formatCurrency(point.totalSpent) }}</td>
-          </tr>
-        </tbody>
-      </table>
-      <div v-else class="status-message">No results for the selected range yet.</div>
-    </div>
   </main>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 
+import { apiClient } from '../services/apiClient'
 import { useInventoryStore } from '../stores/inventoryStore'
 
 const inventoryStore = useInventoryStore()
@@ -180,7 +247,23 @@ const reportFilters = reactive({
   period: 'day'
 })
 
-const customReportError = ref('')
+const inventorySettings = ref(null)
+const settingsForm = reactive({
+  lowStockThreshold: '',
+  expiringSoonDays: ''
+})
+const settingsStatus = ref('')
+const savingSettings = ref(false)
+const exportFilters = reactive({
+  lowStockThreshold: '',
+  expiringInDays: ''
+})
+const exporting = reactive({
+  fullInventory: false,
+  lowStock: false,
+  expiringSoon: false,
+  expense: false
+})
 
 const today = new Date()
 const defaultEndDate = today.toISOString().slice(0, 10)
@@ -200,7 +283,7 @@ onMounted(() => {
     inventoryStore.fetchDeletedItems().catch(error => console.error(error))
   }
 
-  runCustomReport()
+  loadInventorySettings()
 })
 
 const loadingSummary = computed(() => inventoryStore.loading.summary)
@@ -211,8 +294,8 @@ const expiringSoon = computed(() => inventoryStore.expiringSoonMaterials)
 const cutleryLowStock = computed(() => inventoryStore.lowStockCutlery)
 const servingLowStock = computed(() => inventoryStore.lowStockServing)
 const deletedItems = computed(() => inventoryStore.deletedItems)
-const customReport = computed(() => inventoryStore.customReport)
-const loadingCustomReport = computed(() => inventoryStore.loading.customReport)
+const lowStockThresholdLabel = computed(() => inventorySettings.value?.lowStockThreshold ?? '-')
+const expiringSoonDaysLabel = computed(() => inventorySettings.value?.expiringSoonDays ?? '-')
 
 const handleRestore = async item => {
   try {
@@ -222,22 +305,153 @@ const handleRestore = async item => {
   }
 }
 
-const runCustomReport = async () => {
-  customReportError.value = ''
+const handlePermanentDelete = async item => {
+  const confirmed = window.confirm(
+    `Permanently remove ${item.itemName}? This cannot be undone.`
+  )
+  if (!confirmed) return
+
+  try {
+    await inventoryStore.permanentlyDeleteItem(item.itemId)
+  } catch (error) {
+    alert(error.message ?? 'Unable to permanently delete this item.')
+  }
+}
+
+const syncExportDefaults = settings => {
+  if (!settings) return
+  exportFilters.lowStockThreshold = settings.lowStockThreshold
+  exportFilters.expiringInDays = settings.expiringSoonDays
+}
+
+const loadInventorySettings = async () => {
+  try {
+    const settings = await apiClient.getInventorySettings()
+    inventorySettings.value = settings
+    settingsForm.lowStockThreshold = settings.lowStockThreshold
+    settingsForm.expiringSoonDays = settings.expiringSoonDays
+    syncExportDefaults(settings)
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+const saveInventorySettings = async () => {
+  try {
+    savingSettings.value = true
+    settingsStatus.value = ''
+    const payload = {
+      lowStockThreshold: Number(settingsForm.lowStockThreshold),
+      expiringSoonDays: Number(settingsForm.expiringSoonDays)
+    }
+    const updated = await apiClient.updateInventorySettings(payload)
+    inventorySettings.value = updated
+    settingsStatus.value = 'Settings saved'
+    syncExportDefaults(updated)
+    await inventoryStore.fetchSummary()
+  } catch (error) {
+    settingsStatus.value = error.message ?? 'Unable to save settings'
+  } finally {
+    savingSettings.value = false
+  }
+}
+
+const fileTimestamp = () =>
+  new Date().toISOString().replace(/[:.]/g, '').replace('T', '_').replace('Z', '')
+
+const triggerDownload = (blob, filename) => {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+const handleExportFullInventory = async () => {
+  try {
+    exporting.fullInventory = true
+    const blob = await apiClient.exportFullInventory()
+    triggerDownload(blob, `full-inventory-${fileTimestamp()}.xlsx`)
+  } catch (error) {
+    alert(error.message ?? 'Unable to export the full inventory right now.')
+  } finally {
+    exporting.fullInventory = false
+  }
+}
+
+const handleExportLowStock = async () => {
+  if (
+    exportFilters.lowStockThreshold !== '' &&
+    Number(exportFilters.lowStockThreshold) <= 0
+  ) {
+    alert('Low stock threshold must be greater than zero.')
+    return
+  }
+  try {
+    exporting.lowStock = true
+    const params = {}
+    if (exportFilters.lowStockThreshold !== '' && exportFilters.lowStockThreshold != null) {
+      params.threshold = exportFilters.lowStockThreshold
+    }
+    const blob = await apiClient.exportLowStockInventory(params)
+    const suffix = params.threshold ?? 'default'
+    triggerDownload(blob, `low-stock-${suffix}-${fileTimestamp()}.xlsx`)
+  } catch (error) {
+    alert(error.message ?? 'Unable to export the low stock list right now.')
+  } finally {
+    exporting.lowStock = false
+  }
+}
+
+const handleExportExpiringSoon = async () => {
+  if (
+    exportFilters.expiringInDays !== '' &&
+    Number(exportFilters.expiringInDays) <= 0
+  ) {
+    alert('Expiring soon days must be greater than zero.')
+    return
+  }
+  try {
+    exporting.expiringSoon = true
+    const params = {}
+    if (exportFilters.expiringInDays !== '' && exportFilters.expiringInDays != null) {
+      params.expiringInDays = exportFilters.expiringInDays
+    }
+    const blob = await apiClient.exportExpiringInventory(params)
+    const suffix = params.expiringInDays ?? 'default'
+    triggerDownload(blob, `expiring-soon-${suffix}-${fileTimestamp()}.xlsx`)
+  } catch (error) {
+    alert(error.message ?? 'Unable to export the expiring items right now.')
+  } finally {
+    exporting.expiringSoon = false
+  }
+}
+
+const handleExportExpenseReport = async () => {
   try {
     if (!reportFilters.startDate || !reportFilters.endDate) {
-      throw new Error('Select both a start and end date.')
+      throw new Error('Select a start and end date first.')
     }
     if (reportFilters.startDate > reportFilters.endDate) {
       throw new Error('Start date must be before end date.')
     }
-    await inventoryStore.fetchCustomReport({
+    exporting.expense = true
+    const blob = await apiClient.exportExpenseReport({
       startDate: reportFilters.startDate,
       endDate: reportFilters.endDate,
       period: reportFilters.period
     })
+    triggerDownload(
+      blob,
+      `expense-report_${reportFilters.startDate}_${reportFilters.endDate}_${reportFilters.period}_${fileTimestamp()}.xlsx`
+    )
   } catch (error) {
-    customReportError.value = error.message ?? 'Unable to load custom report.'
+    alert(error.message ?? 'Unable to export the expense report right now.')
+  } finally {
+    exporting.expense = false
   }
 }
 
@@ -252,8 +466,13 @@ const formatDate = dateString => {
   return dateString.slice(0, 10)
 }
 
-const formatCurrency = value =>
-  Number(value ?? 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+const formatQuantityWithUnit = (qty, unit) => {
+  if (qty === undefined || qty === null) return '-'
+  if (!unit) return qty
+  const singularOrPlural = Number(qty) === 1 ? unit : unit
+  return `${qty} ${singularOrPlural}`
+}
+
 </script>
 
 <style scoped>
@@ -346,13 +565,162 @@ td {
   background: #1d4ed8;
 }
 
-.custom-report-card {
+.deleted-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.purge-button {
+  background: #b91c1c;
+  border: none;
+  color: #fff;
+  padding: 0.35rem 0.85rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.purge-button:hover {
+  background: #991b1b;
+}
+
+.settings-card {
   background-color: #fff;
   border-radius: 16px;
   padding: 1.5rem;
   max-width: 900px;
-  margin: 2rem auto;
+  margin: 1rem auto;
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.settings-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  align-items: end;
+}
+
+.settings-form label {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+  color: #143029;
+}
+
+.settings-form input {
+  margin-top: 0.35rem;
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+}
+
+.settings-form button {
+  background-color: #2563eb;
+  color: #fff;
+  border: none;
+  padding: 0.65rem 1.25rem;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.settings-form button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.settings-form button:not([disabled]):hover {
+  background-color: #1d4ed8;
+}
+
+.settings-status {
+  margin-top: 0.75rem;
+  font-weight: 600;
+  color: #065f46;
+}
+
+.export-card {
+  background-color: #fff;
+  border-radius: 16px;
+  padding: 1.5rem;
+  max-width: 900px;
+  margin: 1rem auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.export-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.export-panel {
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  padding: 1rem;
+  background-color: #f9fafb;
+}
+
+.export-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin-bottom: 0.85rem;
+}
+
+.export-row label {
+  flex: 1;
+  font-weight: 600;
+  color: #143029;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.export-row input {
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+}
+
+.export-button {
+  background-color: #e6b553;
+  color: #143029;
+  border: none;
+  padding: 0.65rem 1.2rem;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.export-button.primary {
+  background-color: #2563eb;
+  color: #fff;
+}
+
+.export-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.export-button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.export-text {
+  color: #4b5563;
+  margin: 0 0 1rem 0;
+}
+
+.export-hint {
+  font-size: 0.85rem;
+  color: #6b7280;
 }
 
 .section-subtitle {
@@ -360,57 +728,4 @@ td {
   color: #4b5563;
 }
 
-.custom-report-form {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1rem;
-  align-items: end;
-}
-
-.custom-report-form label {
-  display: flex;
-  flex-direction: column;
-  font-weight: 600;
-  color: #143029;
-}
-
-.custom-report-form input,
-.custom-report-form select {
-  margin-top: 0.35rem;
-  padding: 0.5rem;
-  border-radius: 8px;
-  border: 1px solid #d1d5db;
-  font-size: 0.95rem;
-}
-
-.run-report-btn {
-  background-color: #2563eb;
-  color: #fff;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 10px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.run-report-btn[disabled] {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.run-report-btn:not([disabled]):hover {
-  background-color: #1d4ed8;
-}
-
-.error-message {
-  color: #b91c1c;
-  margin-top: 0.75rem;
-  font-weight: 600;
-}
-
-.compact-cards {
-  justify-content: flex-start;
-  margin-bottom: 1rem;
-}
 </style>

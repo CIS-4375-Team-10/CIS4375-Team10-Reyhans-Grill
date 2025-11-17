@@ -212,6 +212,28 @@ export const useInventoryStore = defineStore('inventory', {
         throw error
       }
     },
+    async permanentlyDeleteItem(itemId) {
+      try {
+        await apiClient.purgeItem(itemId)
+        this.deletedItems = this.deletedItems.filter(item => item.itemId !== itemId)
+      } catch (error) {
+        this.setError(error.message ?? 'Unable to permanently delete item')
+        throw error
+      }
+    },
+    async logItemUsage(itemId, payload) {
+      try {
+        const response = await apiClient.logItemUsage(itemId, payload)
+        if (response?.item) {
+          this.items = this.items.map(item => (item.itemId === response.item.itemId ? response.item : item))
+        }
+        await this.fetchSummary()
+        return response
+      } catch (error) {
+        this.setError(error.message ?? 'Unable to log usage')
+        throw error
+      }
+    },
     async fetchPurchases() {
       this.loading.purchases = true
       try {

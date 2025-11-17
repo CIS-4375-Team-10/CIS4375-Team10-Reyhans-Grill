@@ -33,38 +33,92 @@
 
     <!-- Add/Edit Form -->
     <form class="add-form" @submit.prevent="handleSubmit">
-      <input v-model="form.itemName" :placeholder="`${inventoryType === 'MATERIAL' ? 'Material' : 'Utensil'} Name`" required />
+      <label>
+        <span>{{ inventoryType === 'MATERIAL' ? 'Material Name' : 'Utensil Name' }}</span>
+        <input v-model="form.itemName" :placeholder="`${inventoryType === 'MATERIAL' ? 'Material' : 'Utensil'} Name`" required />
+      </label>
       
-      <select v-model="form.categoryId" required>
-        <option disabled value="">Select Category</option>
-        <option v-for="category in currentTabs" :key="category.categoryId" :value="category.categoryId">
-          {{ category.categoryName }}
-        </option>
-      </select>
+      <label>
+        <span>Category</span>
+        <select v-model="form.categoryId" required>
+          <option disabled value="">Select Category</option>
+          <option v-for="category in currentTabs" :key="category.categoryId" :value="category.categoryId">
+            {{ category.categoryName }}
+          </option>
+        </select>
+      </label>
 
-      <input v-model.number="form.quantityInStock" type="number" min="0" placeholder="Qty" required />
-      <input v-model.number="form.unitCost" type="number" min="0" step="0.01" placeholder="Unit Cost ($)" required />
-      
-      <input 
-        v-model.number="form.shelfLifeDays" 
-        type="number" 
-        min="0" 
-        :placeholder="inventoryType === 'MATERIAL' ? 'Shelf Life (days) *' : 'Shelf Life (days)'"
-        :required="inventoryType === 'MATERIAL'"
-      />
-      
-      <input 
-        v-if="inventoryType === 'MATERIAL'" 
-        v-model="form.expirationDate" 
-        type="date" 
-      />
-      
-      <select v-model="form.status">
-        <option value="AVAILABLE">Available</option>
-        <option value="LOW">Low</option>
-        <option value="OUT_OF_STOCK">Out of Stock</option>
-      </select>
+      <label>
+        <span>Quantity</span>
+        <input v-model.number="form.quantityInStock" type="number" min="0" placeholder="Qty" required />
+      </label>
 
+      <label>
+        <span>Unit</span>
+        <select v-model="form.unit" required>
+          <option v-for="unitOption in UNIT_OPTIONS" :key="unitOption.value" :value="unitOption.value">
+            {{ unitOption.label }}
+          </option>
+        </select>
+      </label>
+
+      <label>
+        <span>Unit Cost ($)</span>
+        <input v-model.number="form.unitCost" type="number" min="0" step="0.01" placeholder="Unit Cost ($)" required />
+      </label>
+      
+      <label>
+        <span>Shelf Life (days)</span>
+        <input 
+          v-model.number="form.shelfLifeDays" 
+          type="number" 
+          min="0" 
+          :placeholder="inventoryType === 'MATERIAL' ? 'Shelf Life (days, optional)' : 'Shelf Life (days)'"
+        />
+      </label>
+
+      <label>
+        <span>Purchase Date</span>
+        <input
+          v-model="form.purchaseDate"
+          type="date"
+          placeholder="Purchase date"
+        />
+      </label>
+      
+      <label v-if="inventoryType === 'MATERIAL'">
+        <span>Expiration Date</span>
+        <input 
+          v-model="form.expirationDate" 
+          type="date" 
+        />
+      </label>
+      
+      <label>
+        <span class="field-label">
+          <span>Low Stock Threshold</span>
+          <span class="optional-tag">optional</span>
+        </span>
+        <input
+          v-model.number="form.lowStockThreshold"
+          type="number"
+          min="0"
+          placeholder="Low Stock Threshold (optional)"
+        />
+      </label>
+
+      <label>
+        <span class="field-label">
+          <span>Expiring Soon Days</span>
+          <span class="optional-tag">optional</span>
+        </span>
+        <input
+          v-model.number="form.expiringSoonDays"
+          type="number"
+          min="0"
+          placeholder="Expiring Soon Days (optional)"
+        />
+      </label>
       <div class="button-group">
         <button type="submit" :disabled="isSubmitting">
           {{ editingItemId ? 
@@ -91,10 +145,11 @@
           <tr>
             <th>{{ inventoryType === 'MATERIAL' ? 'Ingredient' : 'Utensil' }}</th>
             <th>Qty</th>
+            <th>Unit</th>
             <th>Unit Cost</th>
             <th>Shelf Life (days)</th>
+            <th>Date Added</th>
             <th v-if="inventoryType === 'MATERIAL'">Expiration</th>
-            <th>Status</th>
             <th class="actions-col">Actions</th>
           </tr>
         </thead>
@@ -102,10 +157,11 @@
           <tr v-for="item in filteredItems" :key="item.itemId">
             <td>{{ item.itemName }}</td>
             <td>{{ item.quantityInStock }}</td>
+            <td>{{ formatUnitLabel(item.unit) }}</td>
             <td>${{ Number(item.unitCost).toFixed(2) }}</td>
-            <td>{{ item.shelfLifeDays }}</td>
+            <td>{{ formatShelfLife(item.shelfLifeDays) }}</td>
+            <td>{{ formatDisplayDate(item.purchaseDate) }}</td>
             <td v-if="inventoryType === 'MATERIAL'">{{ formatDisplayDate(item.expirationDate) }}</td>
-            <td>{{ item.status }}</td>
             <td>
               <button class="edit-button" type="button" @click="startEdit(item)">
                 Edit
@@ -118,6 +174,68 @@
         </tbody>
       </table>
     </div>
+
+    <!-- Usage Logging Section -->
+    <section v-if="inventoryType === 'MATERIAL'" class="usage-section">
+      <h3>Used Inventory / Daily Usage</h3>
+      <p class="usage-description">
+        Log what was used to keep your inventory counts accurate in between deliveries.
+      </p>
+
+      <form class="usage-form" @submit.prevent="handleUsageSubmit">
+        <label>
+          Material
+          <select v-model="usageForm.itemId" required>
+            <option disabled value="">Select material</option>
+            <option
+              v-for="material in materialOptions"
+              :key="material.itemId"
+              :value="material.itemId"
+            >
+              {{ material.itemName }} ({{ material.quantityInStock }} {{ formatUnitLabel(material.unit) }})
+            </option>
+          </select>
+        </label>
+
+        <label>
+          Used Quantity
+          <input
+            v-model.number="usageForm.usedQuantity"
+            type="number"
+            min="0"
+            step="1"
+            placeholder="Qty"
+            required
+          />
+        </label>
+
+        <label>
+          Usage Date (optional)
+          <input v-model="usageForm.usageDate" type="date" />
+        </label>
+
+        <label>
+          Notes (optional)
+          <textarea
+            v-model="usageForm.notes"
+            rows="2"
+            placeholder="e.g., catering event, waste"
+          ></textarea>
+        </label>
+
+        <button type="submit" :disabled="isLoggingUsage || !materialOptions.length">
+          {{ isLoggingUsage ? 'Logging...' : 'Log Usage' }}
+        </button>
+      </form>
+
+      <p class="info-text">
+        You will still occasionally need a physical count to correct drift
+      </p>
+
+      <p v-if="usageStatus.message" :class="['usage-status', usageStatus.type]">
+        {{ usageStatus.message }}
+      </p>
+    </section>
   </main>
 </template>
 
@@ -125,6 +243,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useInventoryStore } from '../stores/inventoryStore'
 import { useRoute, useRouter } from 'vue-router'
+import { apiClient } from '../services/apiClient'
 
 const inventoryStore = useInventoryStore()
 const route = useRoute()
@@ -148,22 +267,54 @@ const UTENSIL_TABS = [
   { categoryId: 'CAT_STORE', label: 'Storage', icon: '🧺' }
 ]
 
+// Allowed units mirror backend validation so dropdown stays in sync
+const UNIT_OPTIONS = [
+  { value: 'each', label: 'Each' },
+  { value: 'lb', label: 'Pound (lb)' },
+  { value: 'kg', label: 'Kilogram (kg)' },
+  { value: 'case', label: 'Case' },
+  { value: 'bag', label: 'Bag' },
+  { value: 'box', label: 'Box' },
+  { value: 'pack', label: 'Pack' },
+  { value: 'gallon', label: 'Gallon' },
+  { value: 'liter', label: 'Liter' }
+]
+
+
 // Reactive state
 const inventoryType = ref('MATERIAL')
 const selectedCategory = ref('')
 const isSubmitting = ref(false)
 const editingItemId = ref(null)
+const isLoggingUsage = ref(false)
 
 const form = ref({
   itemName: '',
   categoryId: '',
   quantityInStock: null,
+  unit: UNIT_OPTIONS[0].value,
   unitCost: null,
   shelfLifeDays: null,
+  purchaseDate: '',
   expirationDate: '',
-  status: 'AVAILABLE',
-  itemType: 'MATERIAL'
+  itemType: 'MATERIAL',
+  lowStockThreshold: null,
+  expiringSoonDays: null
 })
+
+const usageForm = ref({
+  itemId: '',
+  usedQuantity: null,
+  usageDate: new Date().toISOString().slice(0, 10),
+  notes: ''
+})
+
+const usageStatus = ref({
+  type: '',
+  message: ''
+})
+const globalSettings = ref(null)
+const settingsLoading = ref(false)
 
 // Computed properties
 const currentInventoryType = computed(() => inventoryType.value)
@@ -188,6 +339,14 @@ const filteredItems = computed(() => {
     : inventoryStore.utensils
   return items.filter(item => item.categoryId === selectedCategory.value)
 })
+
+const materialOptions = computed(() => inventoryStore.materials)
+const globalLowStockLabel = computed(() =>
+  globalSettings.value?.lowStockThreshold != null ? globalSettings.value.lowStockThreshold : 'default'
+)
+const globalExpiringLabel = computed(() =>
+  globalSettings.value?.expiringSoonDays != null ? globalSettings.value.expiringSoonDays : 'default'
+)
 
 // Methods
 const switchInventoryType = (type) => {
@@ -219,6 +378,17 @@ const handleSubmit = async () => {
       ...form.value,
       shelfLifeDays: form.value.shelfLifeDays ?? null
     }
+    payload.unit = payload.unit || UNIT_OPTIONS[0].value
+    payload.purchaseDate = payload.purchaseDate || null
+    payload.lowStockThreshold =
+      payload.lowStockThreshold === '' || payload.lowStockThreshold == null
+        ? null
+        : payload.lowStockThreshold
+    payload.expiringSoonDays =
+      payload.expiringSoonDays === '' || payload.expiringSoonDays == null
+        ? null
+        : payload.expiringSoonDays
+    payload.itemType = payload.itemType || inventoryType.value
 
     if (editingItemId.value) {
       await inventoryStore.updateItem(editingItemId.value, payload)
@@ -239,11 +409,14 @@ const startEdit = (item) => {
     itemName: item.itemName,
     categoryId: item.categoryId,
     quantityInStock: item.quantityInStock,
+    unit: item.unit ?? UNIT_OPTIONS[0].value,
     unitCost: item.unitCost,
     shelfLifeDays: item.shelfLifeDays,
+    purchaseDate: formatDateInput(item.purchaseDate),
     expirationDate: formatDateInput(item.expirationDate),
-    status: item.status ?? 'AVAILABLE',
-    itemType: item.itemType
+    itemType: item.itemType || (inventoryType.value === 'UTENSIL' ? 'UTENSIL' : 'MATERIAL'),
+    lowStockThreshold: item.lowStockThreshold ?? null,
+    expiringSoonDays: item.expiringSoonDays ?? null
   }
 }
 
@@ -252,11 +425,14 @@ const resetForm = () => {
     itemName: '',
     categoryId: selectedCategory.value || currentTabs.value[0]?.categoryId || '',
     quantityInStock: null,
+    unit: UNIT_OPTIONS[0].value,
     unitCost: null,
     shelfLifeDays: null,
+    purchaseDate: '',
     expirationDate: '',
-    status: 'AVAILABLE',
-    itemType: inventoryType.value
+    itemType: inventoryType.value === 'UTENSIL' ? 'UTENSIL' : 'MATERIAL',
+    lowStockThreshold: null,
+    expiringSoonDays: null
   }
   editingItemId.value = null
 }
@@ -273,6 +449,55 @@ const handleDelete = async (item) => {
   }
 }
 
+const handleUsageSubmit = async () => {
+  if (isLoggingUsage.value) return
+
+  if (!usageForm.value.itemId || !usageForm.value.usedQuantity) {
+    usageStatus.value = {
+      type: 'error',
+      message: 'Please pick a material and enter the quantity used.'
+    }
+    return
+  }
+
+  try {
+    isLoggingUsage.value = true
+    usageStatus.value = { type: '', message: '' }
+
+    await inventoryStore.logItemUsage(usageForm.value.itemId, {
+      usedQuantity: usageForm.value.usedQuantity,
+      usageDate: usageForm.value.usageDate || undefined,
+      notes: usageForm.value.notes || undefined
+    })
+
+    usageStatus.value = {
+      type: 'success',
+      message: 'Usage logged and inventory updated.'
+    }
+    usageForm.value.usedQuantity = null
+    usageForm.value.notes = ''
+    usageForm.value.usageDate = new Date().toISOString().slice(0, 10)
+  } catch (error) {
+    usageStatus.value = {
+      type: 'error',
+      message: error.message ?? 'Unable to log usage right now.'
+    }
+  } finally {
+    isLoggingUsage.value = false
+  }
+}
+
+const loadGlobalSettings = async () => {
+  try {
+    settingsLoading.value = true
+    globalSettings.value = await apiClient.getInventorySettings()
+  } catch (error) {
+    console.error(error)
+  } finally {
+    settingsLoading.value = false
+  }
+}
+
 const formatDateInput = (dateString) => {
   if (!dateString) return ''
   return dateString.slice(0, 10)
@@ -281,6 +506,22 @@ const formatDateInput = (dateString) => {
 const formatDisplayDate = (dateString) => {
   if (!dateString) return '-'
   return dateString.slice(0, 10)
+}
+
+const formatShelfLife = value => {
+  const numericValue = Number(value ?? 0)
+  return numericValue > 0 ? numericValue : 'N/A'
+}
+
+const unitLabelMap = UNIT_OPTIONS.reduce((map, option) => {
+  map[option.value] = option.label
+  return map
+}, {})
+
+const formatUnitLabel = unitValue => {
+  if (!unitValue) return '-'
+  const normalized = unitValue.toLowerCase()
+  return unitLabelMap[normalized] ?? normalized
 }
 
 // Watchers
@@ -305,6 +546,12 @@ watch(inventoryType, (newType) => {
   resetForm()
 })
 
+watch(materialOptions, materials => {
+  if (materials.length && !usageForm.value.itemId) {
+    usageForm.value.itemId = materials[0].itemId
+  }
+}, { immediate: true })
+
 // Set initial type based on current route
 onMounted(() => {
   // Set initial type based on current route
@@ -327,6 +574,7 @@ onMounted(() => {
     inventoryStore.fetchSummary().catch(error => console.error(error))
   }
   resetForm()
+  loadGlobalSettings()
 })
 
 // Also watch for route changes
@@ -395,13 +643,13 @@ watch(() => route.path, (newPath) => {
 
 .tab-button {
   padding: 0.6rem 1.2rem;
-  border: none;
-  border-radius: 12px;
-  background-color: #2f7057;
-  color: #fff;
+  border-radius: 999px;
+  border: 2px solid #2f7057;
+  background-color: transparent;
+  color: #2f7057;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
   font-size: 1rem;
 }
 
@@ -410,19 +658,46 @@ watch(() => route.path, (newPath) => {
 }
 
 .tab-button:hover {
-  background-color: #2f7057;
+  background-color: #e0efe8;
 }
 
 .tab-button.active {
   background-color: #2f7057;
+  color: #fff;
+  border-color: #2f7057;
 }
 
 .add-form {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 1rem;
   justify-content: center;
   margin-bottom: 2rem;
+  padding: 0 1rem;
+}
+
+.add-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-weight: 600;
+  color: #2f7057;
+  font-size: 0.85rem;
+  width: 200px;
+}
+
+.add-form .field-label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  flex-wrap: nowrap;
+}
+
+.add-form .optional-tag {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #6b7280;
+  white-space: nowrap;
 }
 
 .add-form input,
@@ -540,6 +815,89 @@ td {
   background: #b91c1c;
 }
 
+.usage-section {
+  background-color: #fff;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  max-width: 1000px;
+  margin: 1.5rem auto 0;
+}
+
+.usage-description {
+  color: #4b5563;
+  margin-bottom: 1rem;
+}
+
+.usage-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  align-items: end;
+  margin-bottom: 1rem;
+}
+
+.usage-form label {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+  color: #2f7057;
+  gap: 0.35rem;
+}
+
+.usage-form textarea {
+  resize: vertical;
+}
+
+.usage-form input,
+.usage-form select,
+.usage-form textarea {
+  padding: 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.usage-form button {
+  background-color: #2f7057;
+  color: #fff;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.usage-form button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.usage-form button:not(:disabled):hover {
+  background-color: #245845;
+}
+
+.info-text {
+  margin: 0.25rem 0;
+  color: #92400e;
+  font-weight: 600;
+}
+
+.usage-status {
+  margin-top: 0.5rem;
+  font-weight: 600;
+}
+
+.usage-status.success {
+  color: #065f46;
+}
+
+.usage-status.error {
+  color: #b91c1c;
+}
+
 @media (max-width: 768px) {
   .inventory-container {
     padding: 1rem;
@@ -548,6 +906,14 @@ td {
   .add-form {
     flex-direction: column;
     align-items: center;
+    gap: 0.75rem;
+    padding: 0;
+  }
+  
+  .add-form label {
+    width: 100%;
+    max-width: 300px;
+    gap: 0.35rem;
   }
   
   .add-form input,

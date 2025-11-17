@@ -1,28 +1,37 @@
 <template>
   <div class="p-4 bg-white rounded-2xl shadow-md">
-    <h2 class="text-xl font-bold mb-2 text-[#8B2E1D]"></h2>
-    <Pie :data="chartData" :options="chartOptions" />
+    <Pie :data="pieChartData" :options="chartOptions" />
   </div>
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { Pie } from 'vue-chartjs'
 import { Chart as ChartJS, Title, Tooltip, Legend, ArcElement } from 'chart.js'
+
 ChartJS.register(Title, Tooltip, Legend, ArcElement)
 
-const chartData = {
-  labels: ['Meat', 'Vegetables', 'Sauce', 'Other'],
-  datasets: [
-    {
-     backgroundColor: ['#2f7057', '#3a8263', '#45946f', '#50a67b'],
-      data: [40, 30, 20, 10]
-    }
-  ]
-}
+const props = defineProps({
+  chartData: {
+    type: Object,
+    required: true
+  }
+})
+
+const pieChartData = computed(() => props.chartData)
 
 const chartOptions = {
   responsive: true,
-  maintainAspectRatio: false
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      position: 'top',
+      labels: {
+        usePointStyle: true,
+        pointStyle: 'rectRounded'
+      }
+    }
+  }
 }
 </script>
 
