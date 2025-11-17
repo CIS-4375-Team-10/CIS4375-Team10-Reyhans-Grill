@@ -8,6 +8,7 @@ import reportRoutes from './reportRoutes.js'
 import userRoutes from './userRoutes.js'
 import dashboardRoutes from './dashboardRoutes.js'
 import settingsRoutes from './settingsRoutes.js'
+import inventoryRoutes from './inventoryRoutes.js'
 import materialUsageRoutes from './materialUsageRoutes.js'
 
 const router = Router()
@@ -27,5 +28,6 @@ router.use('/reports', reportRoutes)
 router.use('/users', userRoutes)
 router.use('/dashboard', dashboardRoutes)
 router.use('/settings', settingsRoutes)
+router.use('/inventory', inventoryRoutes)
 
 export default router

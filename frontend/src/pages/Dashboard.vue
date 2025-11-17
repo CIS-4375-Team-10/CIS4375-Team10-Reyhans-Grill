@@ -54,13 +54,8 @@
       <div class="alert-card-grid">
         <div class="alert-card">
           <div class="alert-label">Low Stock Alert Threshold</div>
-          <div class="alert-value">{{ alertSettings.lowStockThreshold }}</div>
           <p class="alert-description">
-            Items trigger low stock alerts when quantity is at or below this number.
-            <span v-if="customLowStockCount">
-              {{ customLowStockCount }} item{{ customLowStockCount === 1 ? '' : 's' }} use a custom threshold.
-            </span>
-            <span v-else>All tracked items inherit this threshold.</span>
+            Items here correspond with stock alert inputted in materials page.
           </p>
           <ul v-if="lowStockAlerts.length" class="alert-list">
             <li v-for="item in lowStockAlerts" :key="item.itemId">
@@ -72,13 +67,8 @@
         </div>
         <div class="alert-card">
           <div class="alert-label">Expiring Soon Alert Threshold (days)</div>
-          <div class="alert-value">{{ alertSettings.expiringSoonDays }}</div>
           <p class="alert-description">
-            Materials appear in the Expiring Soon list when they will expire within this window.
-            <span v-if="customExpiringCount">
-              {{ customExpiringCount }} item{{ customExpiringCount === 1 ? '' : 's' }} override this value.
-            </span>
-            <span v-else>All materials follow this default window.</span>
+            Items here correspond with expiration date inputted in materials page.
           </p>
           <ul v-if="expiringAlerts.length" class="alert-list">
             <li v-for="item in expiringAlerts" :key="item.itemId">
@@ -143,24 +133,17 @@ const utensilsInUse = computed(() => inventoryStore.utensilsInUse)
 const weeklyCost = computed(() => inventoryStore.weeklyCostTotal.toFixed(2))
 const lowStockItems = computed(() => inventoryStore.lowStockMaterials.map(item => item.itemName))
 const expiringSoon = computed(() => inventoryStore.expiringSoonMaterials.map(item => item.itemName))
-const inventorySettings = computed(() => inventoryStore.summary?.inventorySettings ?? {})
-const alertSettings = computed(() => ({
-  lowStockThreshold:
-    inventorySettings.value.lowStockThreshold != null
-      ? Number(inventorySettings.value.lowStockThreshold)
-      : '—',
-  expiringSoonDays:
-    inventorySettings.value.expiringSoonDays != null
-      ? Number(inventorySettings.value.expiringSoonDays)
-      : '—'
-}))
-const lowStockAlerts = computed(() => inventoryStore.lowStockMaterials.slice(0, 6))
-const expiringAlerts = computed(() => inventoryStore.expiringSoonMaterials.slice(0, 6))
-const customLowStockCount = computed(
-  () => inventoryStore.items.filter(item => item.lowStockThreshold != null && item.lowStockThreshold !== '').length
+const lowStockAlerts = computed(() =>
+  inventoryStore.items.filter(item => item.lowStockThreshold !== null && item.lowStockThreshold !== '' && item.lowStockThreshold !== undefined)
 )
-const customExpiringCount = computed(
-  () => inventoryStore.items.filter(item => item.expiringSoonDays != null && item.expiringSoonDays !== '').length
+const expiringAlerts = computed(() =>
+  inventoryStore.items.filter(
+    item =>
+      item.expirationDate &&
+      item.expiringSoonDays !== null &&
+      item.expiringSoonDays !== '' &&
+      item.expiringSoonDays !== undefined
+  )
 )
 const formatAlertQuantity = (item) => {
   const qty = Number(item.quantityInStock ?? 0)
@@ -465,3 +448,4 @@ const fallbackChartData = {
   }
 }
 </style>
+

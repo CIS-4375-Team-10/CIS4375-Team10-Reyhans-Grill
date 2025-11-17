@@ -76,6 +76,7 @@ export const apiClient = {
   getInventorySettings: () => request('/settings/inventory'),
   updateInventorySettings: payload =>
     request('/settings/inventory', { method: 'PUT', body: payload }),
+  getInventoryAlerts: () => request('/inventory/alerts'),
 
   // Material usage
   getMaterialUsage: params => {
