@@ -22,6 +22,39 @@
       </button>
     </section>
 
+    <section class="export-report-card">
+      <h3>Export Expense Report</h3>
+      <p class="helper-text">
+        Download an Excel summary of expenses grouped by day, week, or month.
+      </p>
+      <div class="export-fields">
+        <label>
+          Start Date
+          <input type="date" v-model="expenseReportFilters.startDate" />
+        </label>
+        <label>
+          End Date
+          <input type="date" v-model="expenseReportFilters.endDate" />
+        </label>
+        <label>
+          Period
+          <select v-model="expenseReportFilters.period">
+            <option v-for="option in periodOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </select>
+        </label>
+        <button
+          class="export-button"
+          type="button"
+          @click="handleExportExpenseReport"
+          :disabled="exportingExpenseReport"
+        >
+          {{ exportingExpenseReport ? 'Exporting...' : 'Export Expense Report' }}
+        </button>
+      </div>
+    </section>
+
     <section v-if="tracker" class="summary-grid">
       <div class="summary-card income-card">
         <p>Electronic Income</p>
@@ -283,6 +316,14 @@ const filters = reactive({
   to: ''
 })
 
+const expenseReportFilters = reactive({
+  startDate: '',
+  endDate: '',
+  period: 'day'
+})
+
+const exportingExpenseReport = ref(false)
+
 const getToday = () => new Date().toISOString().slice(0, 10)
 
 const electronicForm = reactive({
@@ -331,12 +372,32 @@ const setFeedback = (key, type, message) => {
   entryFeedback[key].message = message
 }
 
+const periodOptions = [
+  { label: 'Daily', value: 'day' },
+  { label: 'Weekly', value: 'week' },
+  { label: 'Monthly', value: 'month' }
+]
+
 const formatCurrency = value =>
   Number(value ?? 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 
 const formatDate = value => {
   if (!value) return '-'
   return value.slice(0, 10)
+}
+
+const fileTimestamp = () =>
+  new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')
+
+const triggerDownload = (blob, filename) => {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
 }
 
 const getDefaultRange = () => {
@@ -353,6 +414,8 @@ const resetFilters = () => {
   const range = getDefaultRange()
   filters.from = range.from
   filters.to = range.to
+  expenseReportFilters.startDate = range.from
+  expenseReportFilters.endDate = range.to
   fetchTracker()
 }
 
@@ -369,6 +432,31 @@ const fetchTracker = async () => {
     errorMessage.value = error.message ?? 'Unable to load expense tracker.'
   } finally {
     isLoading.value = false
+  }
+}
+
+const handleExportExpenseReport = async () => {
+  try {
+    if (!expenseReportFilters.startDate || !expenseReportFilters.endDate) {
+      throw new Error('Select a start and end date first.')
+    }
+    if (expenseReportFilters.startDate > expenseReportFilters.endDate) {
+      throw new Error('Start date must be before end date.')
+    }
+    exportingExpenseReport.value = true
+    const blob = await apiClient.exportExpenseReport({
+      startDate: expenseReportFilters.startDate,
+      endDate: expenseReportFilters.endDate,
+      period: expenseReportFilters.period
+    })
+    triggerDownload(
+      blob,
+      `expense-report_${expenseReportFilters.startDate}_${expenseReportFilters.endDate}_${expenseReportFilters.period}_${fileTimestamp()}.xlsx`
+    )
+  } catch (error) {
+    alert(error.message ?? 'Unable to export the expense report right now.')
+  } finally {
+    exportingExpenseReport.value = false
   }
 }
 
@@ -538,6 +626,53 @@ onMounted(() => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   margin-bottom: 1.5rem;
   align-items: flex-end;
+}
+
+.export-report-card {
+  background-color: #fff;
+  border-radius: 16px;
+  padding: 1.25rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  margin-bottom: 1.5rem;
+}
+
+.export-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+  align-items: flex-end;
+}
+
+.export-fields label {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+  color: #1f4e3d;
+  gap: 0.35rem;
+}
+
+.export-fields input,
+.export-fields select {
+  padding: 0.55rem;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+}
+
+.export-button {
+  background-color: #2563eb;
+  color: #fff;
+  border: none;
+  padding: 0.7rem 1.4rem;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.export-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .filters-card label {

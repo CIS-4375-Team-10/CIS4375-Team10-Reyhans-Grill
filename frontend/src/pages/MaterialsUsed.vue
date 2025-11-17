@@ -73,6 +73,14 @@
           <button type="button" class="filter-button" @click="fetchUsageLogs" :disabled="isLoadingLogs">
             {{ isLoadingLogs ? 'Filtering...' : 'Filter' }}
           </button>
+          <button
+            type="button"
+            class="export-button"
+            @click="handleExportUsage"
+            :disabled="isExportingUsage"
+          >
+            {{ isExportingUsage ? 'Exporting...' : 'Export Usage' }}
+          </button>
         </div>
       </header>
 
@@ -127,6 +135,7 @@ const filters = ref({
 const usageLogs = ref([])
 const isSubmitting = ref(false)
 const isLoadingLogs = ref(false)
+const isExportingUsage = ref(false)
 const formError = ref('')
 const formSuccess = ref('')
 
@@ -163,6 +172,20 @@ const formatDisplayDate = value => {
     month: '2-digit',
     day: '2-digit'
   })
+}
+
+const fileTimestamp = () =>
+  new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')
+
+const triggerDownload = (blob, filename) => {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
 }
 
 const resetForm = () => {
@@ -232,6 +255,27 @@ const fetchUsageLogs = async () => {
   }
 }
 
+const handleExportUsage = async () => {
+  if (filters.value.fromDate && filters.value.toDate && filters.value.fromDate > filters.value.toDate) {
+    formError.value = 'From date must be before To date.'
+    return
+  }
+
+  try {
+    isExportingUsage.value = true
+    formError.value = ''
+    const params = {}
+    if (filters.value.fromDate) params.fromDate = filters.value.fromDate
+    if (filters.value.toDate) params.toDate = filters.value.toDate
+    const blob = await apiClient.exportMaterialUsageLog(params)
+    triggerDownload(blob, `material-usage_${fileTimestamp()}.xlsx`)
+  } catch (error) {
+    formError.value = error.message ?? 'Unable to export usage records.'
+  } finally {
+    isExportingUsage.value = false
+  }
+}
+
 onMounted(() => {
   if (!inventoryStore.items.length) {
     inventoryStore.fetchItems().catch(error => console.error(error))
@@ -294,7 +338,9 @@ onMounted(() => {
   cursor: pointer;
 }
 
-.usage-form button:disabled {
+.usage-form button:disabled,
+.filter-button:disabled,
+.export-button:disabled {
   opacity: 0.7;
   cursor: not-allowed;
 }
@@ -336,6 +382,16 @@ onMounted(() => {
 .filter-button {
   background-color: #2f7057;
   color: #fff;
+  border: none;
+  padding: 0.65rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.export-button {
+  background-color: #e6b553;
+  color: #143029;
   border: none;
   padding: 0.65rem 1.25rem;
   border-radius: 8px;

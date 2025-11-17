@@ -118,39 +118,6 @@
           <p class="export-hint">Leave the overrides blank to use the saved settings.</p>
         </div>
 
-        <div class="export-panel">
-          <h4>Expense Report</h4>
-          <p class="export-text">
-            Choose the date range and grouping period you want to export.
-          </p>
-          <div class="export-row">
-            <label>
-              Start Date
-              <input type="date" v-model="reportFilters.startDate" />
-            </label>
-            <label>
-              End Date
-              <input type="date" v-model="reportFilters.endDate" />
-            </label>
-          </div>
-          <div class="export-row">
-            <label>
-              Period
-              <select v-model="reportFilters.period">
-                <option v-for="option in periodOptions" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </option>
-              </select>
-            </label>
-          </div>
-          <button
-            class="export-button primary"
-            @click="handleExportExpenseReport"
-            :disabled="exporting.expense"
-          >
-            {{ exporting.expense ? 'Exporting...' : 'Export Expense Report' }}
-          </button>
-        </div>
       </div>
     </section>
 
@@ -241,11 +208,6 @@ import { useInventoryStore } from '../stores/inventoryStore'
 
 const inventoryStore = useInventoryStore()
 
-const reportFilters = reactive({
-  startDate: '',
-  endDate: '',
-  period: 'day'
-})
 
 const inventorySettings = ref(null)
 const settingsForm = reactive({
@@ -261,16 +223,9 @@ const exportFilters = reactive({
 const exporting = reactive({
   fullInventory: false,
   lowStock: false,
-  expiringSoon: false,
-  expense: false
+  expiringSoon: false
 })
 
-const today = new Date()
-const defaultEndDate = today.toISOString().slice(0, 10)
-const defaultStart = new Date(today)
-defaultStart.setDate(defaultStart.getDate() - 6)
-reportFilters.startDate = defaultStart.toISOString().slice(0, 10)
-reportFilters.endDate = defaultEndDate
 
 onMounted(() => {
   if (!inventoryStore.items.length) {
@@ -430,36 +385,7 @@ const handleExportExpiringSoon = async () => {
   }
 }
 
-const handleExportExpenseReport = async () => {
-  try {
-    if (!reportFilters.startDate || !reportFilters.endDate) {
-      throw new Error('Select a start and end date first.')
-    }
-    if (reportFilters.startDate > reportFilters.endDate) {
-      throw new Error('Start date must be before end date.')
-    }
-    exporting.expense = true
-    const blob = await apiClient.exportExpenseReport({
-      startDate: reportFilters.startDate,
-      endDate: reportFilters.endDate,
-      period: reportFilters.period
-    })
-    triggerDownload(
-      blob,
-      `expense-report_${reportFilters.startDate}_${reportFilters.endDate}_${reportFilters.period}_${fileTimestamp()}.xlsx`
-    )
-  } catch (error) {
-    alert(error.message ?? 'Unable to export the expense report right now.')
-  } finally {
-    exporting.expense = false
-  }
-}
 
-const periodOptions = [
-  { label: 'Daily', value: 'day' },
-  { label: 'Weekly', value: 'week' },
-  { label: 'Monthly', value: 'month' }
-]
 
 const formatDate = dateString => {
   if (!dateString) return '-'
