@@ -33,63 +33,101 @@
 
     <!-- Add/Edit Form -->
     <form class="add-form" @submit.prevent="handleSubmit">
-      <input v-model="form.itemName" :placeholder="`${inventoryType === 'MATERIAL' ? 'Material' : 'Utensil'} Name`" required />
+      <label>
+        <span>{{ inventoryType === 'MATERIAL' ? 'Material Name' : 'Utensil Name' }}</span>
+        <input v-model="form.itemName" :placeholder="`${inventoryType === 'MATERIAL' ? 'Material' : 'Utensil'} Name`" required />
+      </label>
       
-      <select v-model="form.categoryId" required>
-        <option disabled value="">Select Category</option>
-        <option v-for="category in currentTabs" :key="category.categoryId" :value="category.categoryId">
-          {{ category.categoryName }}
-        </option>
-      </select>
+      <label>
+        <span>Category</span>
+        <select v-model="form.categoryId" required>
+          <option disabled value="">Select Category</option>
+          <option v-for="category in currentTabs" :key="category.categoryId" :value="category.categoryId">
+            {{ category.categoryName }}
+          </option>
+        </select>
+      </label>
 
-      <input v-model.number="form.quantityInStock" type="number" min="0" placeholder="Qty" required />
+      <label>
+        <span>Quantity</span>
+        <input v-model.number="form.quantityInStock" type="number" min="0" placeholder="Qty" required />
+      </label>
 
-      <select v-model="form.unit" required>
-        <option v-for="unitOption in UNIT_OPTIONS" :key="unitOption.value" :value="unitOption.value">
-          {{ unitOption.label }}
-        </option>
-      </select>
+      <label>
+        <span>Unit</span>
+        <select v-model="form.unit" required>
+          <option v-for="unitOption in UNIT_OPTIONS" :key="unitOption.value" :value="unitOption.value">
+            {{ unitOption.label }}
+          </option>
+        </select>
+      </label>
 
-      <input v-model.number="form.unitCost" type="number" min="0" step="0.01" placeholder="Unit Cost ($)" required />
+      <label>
+        <span>Unit Cost ($)</span>
+        <input v-model.number="form.unitCost" type="number" min="0" step="0.01" placeholder="Unit Cost ($)" required />
+      </label>
       
-      <input 
-        v-model.number="form.shelfLifeDays" 
-        type="number" 
-        min="0" 
-        :placeholder="inventoryType === 'MATERIAL' ? 'Shelf Life (days, optional)' : 'Shelf Life (days)'"
-      />
+      <label>
+        <span>Shelf Life (days)</span>
+        <input 
+          v-model.number="form.shelfLifeDays" 
+          type="number" 
+          min="0" 
+          :placeholder="inventoryType === 'MATERIAL' ? 'Shelf Life (days, optional)' : 'Shelf Life (days)'"
+        />
+      </label>
 
-      <input
-        v-model="form.purchaseDate"
-        type="date"
-        placeholder="Purchase date"
-      />
+      <label>
+        <span>Purchase Date</span>
+        <input
+          v-model="form.purchaseDate"
+          type="date"
+          placeholder="Purchase date"
+        />
+      </label>
       
-      <input 
-        v-if="inventoryType === 'MATERIAL'" 
-        v-model="form.expirationDate" 
-        type="date" 
-      />
+      <label v-if="inventoryType === 'MATERIAL'">
+        <span>Expiration Date</span>
+        <input 
+          v-model="form.expirationDate" 
+          type="date" 
+        />
+      </label>
       
-      <select v-model="form.status">
-        <option value="AVAILABLE">Available</option>
-        <option value="LOW">Low</option>
-        <option value="OUT_OF_STOCK">Out of Stock</option>
-      </select>
+      <label>
+        <span>Status</span>
+        <select v-model="form.status">
+          <option value="AVAILABLE">Available</option>
+          <option value="LOW">Low</option>
+          <option value="OUT_OF_STOCK">Out of Stock</option>
+        </select>
+      </label>
 
-      <input
-        v-model.number="form.lowStockThreshold"
-        type="number"
-        min="0"
-        placeholder="Low Stock Threshold (optional)"
-      />
+      <label>
+        <span class="field-label">
+          <span>Low Stock Threshold</span>
+          <span class="optional-tag">optional</span>
+        </span>
+        <input
+          v-model.number="form.lowStockThreshold"
+          type="number"
+          min="0"
+          placeholder="Low Stock Threshold (optional)"
+        />
+      </label>
 
-      <input
-        v-model.number="form.expiringSoonDays"
-        type="number"
-        min="0"
-        placeholder="Expiring Soon Days (optional)"
-      />
+      <label>
+        <span class="field-label">
+          <span>Expiring Soon Days</span>
+          <span class="optional-tag">optional</span>
+        </span>
+        <input
+          v-model.number="form.expiringSoonDays"
+          type="number"
+          min="0"
+          placeholder="Expiring Soon Days (optional)"
+        />
+      </label>
       <div class="button-group">
         <button type="submit" :disabled="isSubmitting">
           {{ editingItemId ? 
@@ -119,6 +157,7 @@
             <th>Unit</th>
             <th>Unit Cost</th>
             <th>Shelf Life (days)</th>
+            <th>Date Added</th>
             <th v-if="inventoryType === 'MATERIAL'">Expiration</th>
             <th>Status</th>
             <th class="actions-col">Actions</th>
@@ -131,6 +170,7 @@
             <td>{{ formatUnitLabel(item.unit) }}</td>
             <td>${{ Number(item.unitCost).toFixed(2) }}</td>
             <td>{{ formatShelfLife(item.shelfLifeDays) }}</td>
+            <td>{{ formatDisplayDate(item.purchaseDate) }}</td>
             <td v-if="inventoryType === 'MATERIAL'">{{ formatDisplayDate(item.expirationDate) }}</td>
             <td>{{ item.status }}</td>
             <td>
@@ -645,9 +685,34 @@ watch(() => route.path, (newPath) => {
 .add-form {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 1rem;
   justify-content: center;
   margin-bottom: 2rem;
+  padding: 0 1rem;
+}
+
+.add-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-weight: 600;
+  color: #2f7057;
+  font-size: 0.85rem;
+  width: 200px;
+}
+
+.add-form .field-label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  flex-wrap: nowrap;
+}
+
+.add-form .optional-tag {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #6b7280;
+  white-space: nowrap;
 }
 
 .add-form input,
@@ -856,6 +921,14 @@ td {
   .add-form {
     flex-direction: column;
     align-items: center;
+    gap: 0.75rem;
+    padding: 0;
+  }
+  
+  .add-form label {
+    width: 100%;
+    max-width: 300px;
+    gap: 0.35rem;
   }
   
   .add-form input,
