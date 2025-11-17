@@ -39,9 +39,21 @@ onUnmounted(() => {
   </div>
 </template>
 
-<style scoped>
-#app {
+<style>
+/* Reset default browser styles */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background-color: #FFF7ED; 
   font-family: Avenir, Helvetica, Arial, sans-serif;
+}
+
+/* Make app container fill viewport */
+#app {
+  min-height: 100vh;
+  box-sizing: border-box;
   padding: 20px;
+  background-color: inherit; 
 }
 </style>
