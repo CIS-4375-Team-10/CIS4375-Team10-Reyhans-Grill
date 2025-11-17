@@ -84,6 +84,9 @@ onMounted(() => {
   if (!inventoryStore.summary) {
     inventoryStore.fetchSummary().catch(error => console.error(error))
   }
+  if (!inventoryStore.purchases.length) {
+    inventoryStore.fetchPurchases().catch(error => console.error(error))
+  }
 })
 
 const totalMaterials = computed(() => inventoryStore.totalMaterialsCount)
