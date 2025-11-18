@@ -1,9 +1,11 @@
+-- Create the main database once if it does not exist.
 CREATE DATABASE IF NOT EXISTS reyhans_grill
   DEFAULT CHARACTER SET utf8mb4
   DEFAULT COLLATE utf8mb4_unicode_ci;
 
 USE reyhans_grill;
 
+-- Category lookup table (Fruits, Vegetables, etc.).
 CREATE TABLE IF NOT EXISTS Category (
   Category_ID VARCHAR(20) PRIMARY KEY,
   Category_Name VARCHAR(100) NOT NULL,
@@ -11,6 +13,7 @@ CREATE TABLE IF NOT EXISTS Category (
   Updated_At TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Global thresholds used when items do not supply their own values.
 CREATE TABLE IF NOT EXISTS Inventory_Settings (
   Setting_ID INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   Low_Stock_Threshold INT UNSIGNED NOT NULL DEFAULT 10,
@@ -19,6 +22,7 @@ CREATE TABLE IF NOT EXISTS Inventory_Settings (
   Updated_At TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- User accounts (admin plus future staff logins).
 CREATE TABLE IF NOT EXISTS user (
   User_ID VARCHAR(20) PRIMARY KEY,
   Username VARCHAR(50) NOT NULL UNIQUE,
@@ -27,6 +31,7 @@ CREATE TABLE IF NOT EXISTS user (
   Updated_At TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Master inventory table that stores every material/utensil.
 CREATE TABLE IF NOT EXISTS Item (
   Item_ID VARCHAR(20) PRIMARY KEY,
   Item_Name VARCHAR(120) NOT NULL,
@@ -51,6 +56,7 @@ CREATE TABLE IF NOT EXISTS Item (
     ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Legacy usage log kept for backwards compatibility.
 CREATE TABLE IF NOT EXISTS `usage` (
   Usage_ID VARCHAR(24) PRIMARY KEY,
   Item_ID VARCHAR(20) NOT NULL,
@@ -67,6 +73,7 @@ CREATE TABLE IF NOT EXISTS `usage` (
     ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Newer inventory usage entries logged from the UI.
 CREATE TABLE IF NOT EXISTS Inventory_Usage (
   Usage_ID INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   Item_ID VARCHAR(20) NOT NULL,
@@ -79,6 +86,7 @@ CREATE TABLE IF NOT EXISTS Inventory_Usage (
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Historical material usage table (allows decimals for old data).
 CREATE TABLE IF NOT EXISTS Material_Usage (
   Usage_ID INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   Item_ID VARCHAR(20) NOT NULL,
@@ -91,6 +99,7 @@ CREATE TABLE IF NOT EXISTS Material_Usage (
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Electronic income sources (DoorDash, Card, etc.).
 CREATE TABLE IF NOT EXISTS Electronic_Income (
   Electronic_ID INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   Income_Date DATE NOT NULL,
@@ -101,6 +110,7 @@ CREATE TABLE IF NOT EXISTS Electronic_Income (
   Updated_At TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Cash deposits counted at the end of each day.
 CREATE TABLE IF NOT EXISTS Cash_Income (
   Cash_ID INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   Income_Date DATE NOT NULL,
@@ -110,6 +120,7 @@ CREATE TABLE IF NOT EXISTS Cash_Income (
   Updated_At TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Manual expenses keyed in from bank/receipt records.
 CREATE TABLE IF NOT EXISTS Expense (
   Expense_ID INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   Expense_Date DATE NOT NULL,
@@ -121,6 +132,7 @@ CREATE TABLE IF NOT EXISTS Expense (
   Updated_At TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Session table for the web app. Keeps the user logged in.
 CREATE TABLE IF NOT EXISTS user_sessions (
   Session_ID BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   User_ID VARCHAR(20) NOT NULL,
@@ -133,6 +145,7 @@ CREATE TABLE IF NOT EXISTS user_sessions (
   UNIQUE KEY uq_session_token (Session_Token)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Purchase log ties inventory buys to users and total cost.
 CREATE TABLE IF NOT EXISTS Purchase (
   Purchase_ID VARCHAR(24) PRIMARY KEY,
   User_ID VARCHAR(20) NOT NULL,
@@ -150,6 +163,7 @@ CREATE TABLE IF NOT EXISTS Purchase (
     ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Optional reporting table (currently unused but kept for future use).
 CREATE TABLE IF NOT EXISTS Report (
   Report_ID VARCHAR(40) PRIMARY KEY,
   Report_Date DATE NOT NULL,
@@ -161,14 +175,16 @@ CREATE TABLE IF NOT EXISTS Report (
   CONSTRAINT fk_report_user FOREIGN KEY (User_ID) REFERENCES user (User_ID)
     ON UPDATE CASCADE
     ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Seed the default thresholds so the app has initial settings.
 INSERT INTO Inventory_Settings (Setting_ID, Low_Stock_Threshold, Expiring_Soon_Days) VALUES
   (1, 10, 7)
 ON DUPLICATE KEY UPDATE
   Low_Stock_Threshold = VALUES(Low_Stock_Threshold),
   Expiring_Soon_Days = VALUES(Expiring_Soon_Days);
 
+-- Preload the core category list used throughout the UI.
 INSERT INTO Category (Category_ID, Category_Name) VALUES
   ('CAT_FRUITS', 'Fruits'),
   ('CAT_VEG', 'Vegetables'),
@@ -183,6 +199,7 @@ INSERT INTO Category (Category_ID, Category_Name) VALUES
   ('CAT_STORE', 'Storage')
 ON DUPLICATE KEY UPDATE Category_Name = VALUES(Category_Name);
 
+-- Seed the admin user (password is bcrypt hashed).
 INSERT INTO user (User_ID, Username, Password) VALUES
   ('USR_ADMIN', 'admin', '$2b$12$2CuuTPCAyr4HrjNTNsXNge0EYYxis42DJ47gUzZIV2ZgSbDFaoRKK')
 ON DUPLICATE KEY UPDATE Username = VALUES(Username), Password = VALUES(Password);

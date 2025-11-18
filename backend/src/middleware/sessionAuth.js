@@ -1,3 +1,4 @@
+// Authorizes sessions
 import { getPool } from '../db/pool.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HttpError } from '../utils/httpError.js'

@@ -2,7 +2,7 @@ import { app } from './app.js'
 import { env } from './config/env.js'
 import { getPool } from './db/pool.js'
 
-// Bootstraps the API: verify DB is reachable, then start listening
+// Bootstraps the API: verify DB is reachable, then start listening (double check?)
 const startServer = async () => {
   try {
     const pool = getPool()

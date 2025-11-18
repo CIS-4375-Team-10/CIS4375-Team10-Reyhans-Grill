@@ -1,3 +1,4 @@
+// These are controllers, the "brain" behind the API routes ✌️
 import crypto from 'crypto'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'

@@ -1,11 +1,12 @@
+// Config loader here!!! 
 import dotenv from 'dotenv'
 import { z } from 'zod'
 
 // Load variables from `.env` into process.env
-// Example: DB_HOST=localhost becomes process.env.DB_HOST
+// Exampl: DB_HOST=localhost becomes process.env.DB_HOST
 dotenv.config()
 
-// Zod gives error messages.
+// Zod should gives error messages.
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),

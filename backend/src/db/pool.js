@@ -1,3 +1,4 @@
+// Basically how the backend talks to the database 
 import mysql from 'mysql2/promise'
 import { env } from '../config/env.js'
 
