@@ -222,7 +222,7 @@ const fallbackChartData = {
 }
 
 .alerts-section {
-  background-color: #fff;
+  background-color: #9f9d9d;
   border-radius: 16px;
   padding: 1.5rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -323,7 +323,7 @@ const fallbackChartData = {
 }
 
 .card {
-  background-color: #fff;
+  background-color: #9f9d9d;
   flex: 1 1 180px;
   display: flex;
   align-items: center;
@@ -370,7 +370,7 @@ const fallbackChartData = {
 }
 
 .chart-container {
-  background-color: #fff;
+  background-color: #9f9d9d;
   padding: 1.5rem;
   border-radius: 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -409,7 +409,7 @@ const fallbackChartData = {
 }
 
 .category-value {
-  color: #2563eb;
+  color: #6990e6;
 }
 
 .category-empty {
