@@ -17,7 +17,11 @@ const formatLocalDateTime = date => {
 
 const createUsageSchema = z.object({
   materialId: z.string().min(1),
-  quantityUsed: z.coerce.number().positive(),
+  // Package-level tracking only: usage must be an integer count.
+  quantityUsed: z.coerce
+    .number()
+    .int({ message: 'Quantity must be a whole number (no decimals).' })
+    .positive(),
   usageDate: z
     .string()
     .optional()
@@ -115,11 +119,12 @@ export const createMaterialUsage = asyncHandler(async (req, res) => {
               i.Item_ID AS materialId,
               i.Item_Name AS materialName,
               i.Unit AS unit
-         FROM Material_Usage mu
-         JOIN Item i ON i.Item_ID = mu.Item_ID
-        WHERE mu.Usage_ID = ?`,
-      [insertResult.insertId]
-    )
+       FROM Material_Usage mu
+       JOIN Item i ON i.Item_ID = mu.Item_ID
+      WHERE mu.Usage_ID = ?
+        AND i.Is_Deleted = 0`,
+    [insertResult.insertId]
+  )
 
     res.status(201).json(rows[0])
   } catch (error) {
@@ -132,7 +137,7 @@ export const createMaterialUsage = asyncHandler(async (req, res) => {
 
 export const listMaterialUsage = asyncHandler(async (req, res) => {
   const filters = querySchema.parse(req.query)
-  const clauses = []
+  const clauses = ['i.Is_Deleted = 0']
   const params = []
 
   if (filters.fromDate) {
@@ -144,9 +149,11 @@ export const listMaterialUsage = asyncHandler(async (req, res) => {
     params.push(filters.toDate)
   }
 
-  const whereClause = clauses.length
-    ? `WHERE ${clauses.join(' AND ')}`
-    : 'WHERE mu.Usage_Date >= DATE_SUB(NOW(), INTERVAL 30 DAY)'
+  if (!filters.fromDate && !filters.toDate) {
+    clauses.push('mu.Usage_Date >= DATE_SUB(NOW(), INTERVAL 30 DAY)')
+  }
+
+  const whereClause = `WHERE ${clauses.join(' AND ')}`
 
   const [rows] = await pool.query(
     `SELECT mu.Usage_ID AS usageId,

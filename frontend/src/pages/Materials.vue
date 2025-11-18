@@ -50,7 +50,14 @@
 
       <label>
         <span>Quantity</span>
-        <input v-model.number="form.quantityInStock" type="number" min="0" placeholder="Qty" required />
+        <input
+          v-model.number="form.quantityInStock"
+          type="number"
+          min="0"
+          step="1"
+          placeholder="Qty"
+          required
+        />
       </label>
 
       <label>
@@ -456,7 +463,7 @@ const handleDelete = async (item) => {
 const handleUsageSubmit = async () => {
   if (isLoggingUsage.value) return
 
-  if (!usageForm.value.itemId || !usageForm.value.usedQuantity) {
+  if (!usageForm.value.itemId || usageForm.value.usedQuantity == null) {
     usageStatus.value = {
       type: 'error',
       message: 'Please pick a material and enter the quantity used.'

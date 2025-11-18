@@ -31,6 +31,7 @@ export const listPurchases = asyncHandler(async (req, res) => {
        FROM Purchase p
        JOIN Item i ON i.Item_ID = p.Item_ID
        JOIN \`user\` u ON u.User_ID = p.User_ID
+      WHERE i.Is_Deleted = 0
       ORDER BY p.Purchase_Date DESC`
   )
   res.json(rows)
@@ -65,7 +66,8 @@ export const createPurchase = asyncHandler(async (req, res) => {
        FROM Purchase p
        JOIN Item i ON i.Item_ID = p.Item_ID
        JOIN \`user\` u ON u.User_ID = p.User_ID
-      WHERE p.Purchase_ID = ?`,
+      WHERE p.Purchase_ID = ?
+        AND i.Is_Deleted = 0`,
     [purchaseId]
   )
 

@@ -1,15 +1,46 @@
 import { getPool } from '../db/pool.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { getInventorySettings } from '../services/settingsService.js'
+import { getExpenseRowsForRange } from './financeController.js'
+import { HttpError } from '../utils/httpError.js'
 
 const pool = getPool()
 
 const utensilCategoryIds = ['CAT_COOK', 'CAT_SERVE', 'CAT_BAKE', 'CAT_CUT', 'CAT_STORE']
+const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+
+const formatDate = date => date.toISOString().slice(0, 10)
+
+const lastSevenDayRange = () => {
+  const today = new Date()
+  const start = new Date(today)
+  start.setDate(start.getDate() - 6)
+  return {
+    from: formatDate(start),
+    to: formatDate(today)
+  }
+}
+
+const buildSummaryRange = query => {
+  const fallback = lastSevenDayRange()
+  const from = query.startDate ?? fallback.from
+  const to = query.endDate ?? fallback.to
+
+  if (!dateRegex.test(from) || !dateRegex.test(to)) {
+    throw new HttpError(400, 'startDate and endDate must be in YYYY-MM-DD format')
+  }
+  if (from > to) {
+    throw new HttpError(400, 'startDate must be before endDate')
+  }
+
+  return { from, to }
+}
 
 export const getDashboardSummary = asyncHandler(async (req, res) => {
   const settings = await getInventorySettings()
   const threshold = Number(req.query.lowStock ?? settings.lowStockThreshold)
   const horizonDays = Number(req.query.expiringInDays ?? settings.expiringSoonDays)
+  const expenseRange = buildSummaryRange(req.query)
 
   const [[itemStats]] = await pool.query(
     `SELECT COUNT(*) AS totalItems,
@@ -103,12 +134,9 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
   `
   const [[utensilStats]] = await pool.query(utensilQuery, utensilCategoryIds)
 
-  const [[spendStats]] = await pool.query(
-    `SELECT IFNULL(SUM(Unit_Cost * Quantity_in_Stock), 0) AS recentSpend
-       FROM Item
-      WHERE Is_Deleted = 0
-        AND Created_At >= DATE_SUB(NOW(), INTERVAL 7 DAY)`
-  )
+  // Expense tracker already computes totals across Expense + Purchase tables.
+  // Reuse the same helper so the dashboard "Weekly Cost" matches the tracker filters.
+  const expenseData = await getExpenseRowsForRange(expenseRange)
 
   const materialsQuantity = Number(materialStats.materialsQuantity) || 0
   const utensilsQuantity = Number(utensilStats.utensilsQuantity) || 0
@@ -123,7 +151,7 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
     lowStockCutlery,
     lowStockServing,
     utensilsInUse: utensilsQuantity,
-    recentSpend: Number(spendStats.recentSpend) || 0,
+    recentSpend: expenseData.materialsInventoryTotal,
     inventorySettings: settings
   })
 })

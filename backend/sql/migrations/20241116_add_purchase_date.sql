@@ -1,1 +1,0 @@
-ALTER TABLE Item ADD COLUMN Purchase_Date DATE AFTER Unit_Cost;

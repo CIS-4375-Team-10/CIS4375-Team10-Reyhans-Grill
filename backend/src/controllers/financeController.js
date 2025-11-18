@@ -115,7 +115,8 @@ const mapInventoryPurchase = row => ({
   paidTo: row.vendorName ?? row.itemName ?? 'Inventory Supplier',
   description: row.description ?? `Inventory restock - ${row.itemName ?? ''}`.trim(),
   amount: toCurrencyNumber(row.totalCost),
-  source: 'inventory'
+  source: 'inventory',
+  itemType: row.itemType ? row.itemType.toUpperCase() : 'MATERIAL'
 })
 
 // Items that were directly added (without a Purchase row) are treated as inventory spend too.
@@ -135,23 +136,12 @@ const mapInventoryItem = (row, fallbackDate) => {
       ? `Inventory purchase (${row.categoryName})`
       : 'Inventory purchase',
     amount,
-    source: 'inventory'
+    source: 'inventory',
+    itemType: row.itemType ? row.itemType.toUpperCase() : 'MATERIAL'
   }
 }
 
-/**
- * Build the full "expense tracker" payload consumed by the Vue page.
- * Steps:
- * 1. Parse optional ?from= / ?to= filters and fall back to the current month.
- * 2. Fetch manual expenses, inventory purchases, and both income tables in parallel.
- * 3. Normalize everything into a shared shape so the UI can render one combined table.
- * 4. Return totals that let the UI display quick summary cards.
- */
-export const getExpenseTrackerSnapshot = asyncHandler(async (req, res) => {
-  const parsed = trackerQuerySchema.parse(req.query)
-  const range = normalizeRange(parsed)
-
-  // Manual expenses keyed in through the UI.
+const fetchExpenseRowsForRange = async range => {
   const expensePromise = pool.query(
     `SELECT Expense_ID AS expenseId,
             Expense_Date AS expenseDate,
@@ -164,6 +154,96 @@ export const getExpenseTrackerSnapshot = asyncHandler(async (req, res) => {
       ORDER BY Expense_Date ASC, Expense_ID ASC`,
     [range.from, range.to]
   )
+
+  const inventoryPromise = pool.query(
+    `SELECT p.Purchase_ID AS purchaseId,
+            p.Purchase_Date AS purchaseDate,
+            p.Total_Cost AS totalCost,
+            i.Item_Name AS itemName,
+            i.Item_Type AS itemType,
+            NULL AS vendorName,
+            NULL AS paymentType,
+            NULL AS description
+       FROM Purchase p
+       JOIN Item i ON i.Item_ID = p.Item_ID
+      WHERE i.Is_Deleted = 0
+        AND p.Purchase_Date BETWEEN ? AND ?
+      ORDER BY p.Purchase_Date ASC, p.Purchase_ID ASC`,
+    [range.from, range.to]
+  )
+
+  const inventoryFromItemsPromise = pool.query(
+    `SELECT i.Item_ID AS itemId,
+            i.Item_Name AS itemName,
+            i.Purchase_Date AS purchaseDate,
+            i.Unit_Cost AS unitCost,
+            i.Quantity_in_Stock AS quantityInStock,
+            c.Category_Name AS categoryName,
+            i.Item_Type AS itemType,
+            DATE_FORMAT(i.Created_At, '%Y-%m-%d') AS createdDate
+       FROM Item i
+  LEFT JOIN Purchase p
+         ON p.Item_ID = i.Item_ID
+        AND p.Purchase_Date = i.Purchase_Date
+  LEFT JOIN Category c ON c.Category_ID = i.Category_ID
+      WHERE i.Is_Deleted = 0
+        AND i.Purchase_Date IS NOT NULL
+        AND i.Purchase_Date BETWEEN ? AND ?
+        AND p.Purchase_ID IS NULL
+      ORDER BY i.Purchase_Date ASC, i.Item_ID ASC`,
+    [range.from, range.to]
+  )
+
+  const [[expenses], [inventoryPurchases], [inventoryItems]] = await Promise.all([
+    expensePromise,
+    inventoryPromise,
+    inventoryFromItemsPromise
+  ])
+
+  const manualExpenseRows = expenses.map(mapManualExpense)
+  const inventoryExpenseRows = [
+    ...inventoryPurchases.map(mapInventoryPurchase),
+    ...inventoryItems
+      .map(row => mapInventoryItem(row, row.createdDate ?? range.from))
+      .filter(Boolean)
+  ]
+
+  const combinedExpenses = [...manualExpenseRows, ...inventoryExpenseRows].sort((a, b) => {
+    if (a.expenseDate === b.expenseDate) {
+      return (a.expenseId ?? 0) < (b.expenseId ?? 0) ? -1 : 1
+    }
+    return a.expenseDate < b.expenseDate ? -1 : 1
+  })
+
+  const manualTotal = manualExpenseRows.reduce((sum, row) => sum + row.amount, 0)
+  const inventoryTotal = inventoryExpenseRows.reduce((sum, row) => sum + row.amount, 0)
+  const materialsInventoryTotal = inventoryExpenseRows
+    .filter(row => (row.itemType ?? '').toUpperCase() === 'MATERIAL')
+    .reduce((sum, row) => sum + row.amount, 0)
+
+  return {
+    manualExpenseRows,
+    inventoryExpenseRows,
+    combinedExpenses,
+    manualTotal,
+    inventoryTotal,
+    materialsInventoryTotal
+  }
+}
+
+export const getExpenseRowsForRange = fetchExpenseRowsForRange
+
+/**
+ * Build the full "expense tracker" payload consumed by the Vue page.
+ * Steps:
+ * 1. Parse optional ?from= / ?to= filters and fall back to the current month.
+ * 2. Fetch manual expenses, inventory purchases, and both income tables in parallel.
+ * 3. Normalize everything into a shared shape so the UI can render one combined table.
+ * 4. Return totals that let the UI display quick summary cards.
+ */
+export const getExpenseTrackerSnapshot = asyncHandler(async (req, res) => {
+  const parsed = trackerQuerySchema.parse(req.query)
+  const range = normalizeRange(parsed)
 
   // Cash drawer deposits / corrections.
   const cashPromise = pool.query(
@@ -191,72 +271,19 @@ export const getExpenseTrackerSnapshot = asyncHandler(async (req, res) => {
   )
 
   // Inventory purchases with explicit Purchase rows.
-  const inventoryPromise = pool.query(
-    `SELECT p.Purchase_ID AS purchaseId,
-            p.Purchase_Date AS purchaseDate,
-            p.Total_Cost AS totalCost,
-            i.Item_Name AS itemName,
-            NULL AS vendorName,
-            NULL AS paymentType,
-            NULL AS description
-       FROM Purchase p
-       JOIN Item i ON i.Item_ID = p.Item_ID
-      WHERE p.Purchase_Date BETWEEN ? AND ?
-      ORDER BY p.Purchase_Date ASC, p.Purchase_ID ASC`,
-    [range.from, range.to]
-  )
-
-  // Inventory items added without purchase rows still count as expenses.
-  const inventoryFromItemsPromise = pool.query(
-    `SELECT i.Item_ID AS itemId,
-            i.Item_Name AS itemName,
-            i.Purchase_Date AS purchaseDate,
-            i.Unit_Cost AS unitCost,
-            i.Quantity_in_Stock AS quantityInStock,
-            c.Category_Name AS categoryName,
-            DATE_FORMAT(i.Created_At, '%Y-%m-%d') AS createdDate
-       FROM Item i
-  LEFT JOIN Purchase p
-         ON p.Item_ID = i.Item_ID
-        AND p.Purchase_Date = i.Purchase_Date
-  LEFT JOIN Category c ON c.Category_ID = i.Category_ID
-      WHERE i.Is_Deleted = 0
-        AND i.Purchase_Date IS NOT NULL
-        AND i.Purchase_Date BETWEEN ? AND ?
-        AND p.Purchase_ID IS NULL
-      ORDER BY i.Purchase_Date ASC, i.Item_ID ASC`,
-    [range.from, range.to]
-  )
-
-  // Run every query at once to keep the API snappy even with large data sets.
-  const [[expenses], [cash], [electronic], [inventoryPurchases], [inventoryItems]] = await Promise.all([
-    expensePromise,
+  const [expenseData, [cash], [electronic]] = await Promise.all([
+    fetchExpenseRowsForRange(range),
     cashPromise,
-    electronicPromise,
-    inventoryPromise,
-    inventoryFromItemsPromise
+    electronicPromise
   ])
 
-  // Build flat lists that contain both manual expenses and inventory purchases.
-  const manualExpenseRows = expenses.map(mapManualExpense)
-  const inventoryExpenseRows = [
-    ...inventoryPurchases.map(mapInventoryPurchase),
-    ...inventoryItems
-      .map(row => mapInventoryItem(row, row.createdDate ?? range.from))
-      .filter(Boolean)
-  ]
-
-  // Merge, then sort by date so the table shows a true chronological ledger.
-  const combinedExpenses = [...manualExpenseRows, ...inventoryExpenseRows].sort((a, b) => {
-    if (a.expenseDate === b.expenseDate) {
-      return (a.expenseId ?? 0) < (b.expenseId ?? 0) ? -1 : 1
-    }
-    return a.expenseDate < b.expenseDate ? -1 : 1
-  })
-
-  // Totals feed the summary cards on top of the page.
-  const manualTotal = manualExpenseRows.reduce((sum, row) => sum + row.amount, 0)
-  const inventoryTotal = inventoryExpenseRows.reduce((sum, row) => sum + row.amount, 0)
+  const {
+    manualExpenseRows,
+    inventoryExpenseRows,
+    combinedExpenses,
+    manualTotal,
+    inventoryTotal
+  } = expenseData
   const expenseTotal = manualTotal + inventoryTotal
   const cashTotal = cash.reduce((sum, row) => sum + toCurrencyNumber(row.amount), 0)
   const electronicTotal = electronic.reduce(

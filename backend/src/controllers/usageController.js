@@ -13,7 +13,11 @@ const dateString = z
 const usageSchema = z.object({
   itemId: z.string().min(1),
   userId: z.string().min(1),
-  quantityUsed: z.coerce.number().int().positive(),
+  // Usage entries mirror material usage: no fractional packages.
+  quantityUsed: z.coerce
+    .number()
+    .int({ message: 'Quantity must be a whole number (no decimals).' })
+    .positive(),
   dateUsed: dateString
 })
 
@@ -29,6 +33,7 @@ export const listUsage = asyncHandler(async (req, res) => {
        FROM \`usage\` u
        JOIN Item i ON i.Item_ID = u.Item_ID
        JOIN \`user\` usr ON usr.User_ID = u.User_ID
+      WHERE i.Is_Deleted = 0
       ORDER BY u.Date_Used DESC`
   )
   res.json(rows)
@@ -55,7 +60,8 @@ export const createUsage = asyncHandler(async (req, res) => {
        FROM \`usage\` u
        JOIN Item i ON i.Item_ID = u.Item_ID
        JOIN \`user\` usr ON usr.User_ID = u.User_ID
-      WHERE u.Usage_ID = ?`,
+      WHERE u.Usage_ID = ?
+        AND i.Is_Deleted = 0`,
     [usageId]
   )
 

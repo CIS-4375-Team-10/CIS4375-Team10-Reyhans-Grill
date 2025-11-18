@@ -28,9 +28,9 @@
           <input
             v-model.number="form.quantityUsed"
             type="number"
-            step="0.01"
+            step="1"
             min="0"
-            placeholder="e.g., 2.5"
+            placeholder="Enter whole number"
             required
           />
         </label>
@@ -99,7 +99,7 @@
           <tr v-for="log in usageLogs" :key="log.usageId">
             <td>{{ formatDisplayDate(log.usageDate) }}</td>
             <td>{{ log.materialName }}</td>
-            <td>{{ Number(log.quantityUsed).toFixed(2) }} {{ formatUnit(log.unit) }}</td>
+            <td>{{ log.quantityUsed }} {{ formatUnit(log.unit) }}</td>
             <td>{{ log.reason ?? '—' }}</td>
           </tr>
         </tbody>

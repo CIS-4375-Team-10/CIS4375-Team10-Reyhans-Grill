@@ -65,7 +65,11 @@ const itemTypeSchema = z.preprocess(
 const itemSchema = z.object({
   itemName: z.string().min(1).max(120),
   categoryId: z.string().min(1),
-  quantityInStock: z.coerce.number().int().nonnegative(),
+  // Quantities are tracked per whole package (cases/bags), so enforce integers.
+  quantityInStock: z.coerce
+    .number()
+    .int({ message: 'Quantity in stock must be a whole number (no decimals).' })
+    .nonnegative(),
   unit: unitSchema,
   unitCost: z.coerce.number().nonnegative(),
   purchaseDate: optionalDate,
@@ -84,7 +88,10 @@ const itemSchema = z.object({
 })
 
 const usageLogSchema = z.object({
-  usedQuantity: z.coerce.number().positive(),
+  usedQuantity: z.coerce
+    .number()
+    .int({ message: 'Used quantity must be a whole number (no decimals).' })
+    .positive(),
   usageDate: dateString.optional(),
   notes: z
     .string()

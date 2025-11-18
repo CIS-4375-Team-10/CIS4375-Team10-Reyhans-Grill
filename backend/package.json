@@ -15,7 +15,7 @@
     "express",
     "mysql"
   ],
-  "author": "",
+  "author": "John Buckley ✌️",
   "license": "MIT",
   "dependencies": {
     "bcryptjs": "^3.0.3",

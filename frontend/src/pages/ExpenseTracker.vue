@@ -394,10 +394,12 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 
 import { apiClient } from '../services/apiClient'
+import { useInventoryStore } from '../stores/inventoryStore'
 
 // ----------------------------
 // Reactive state and helpers
 // ----------------------------
+const inventoryStore = useInventoryStore()
 const tracker = ref(null) // Entire expense-tracker payload returned from the API
 const isLoading = ref(false) // Toggles the loading states while we wait for the server
 const errorMessage = ref('') // Human-friendly message shown if the fetch fails
@@ -568,6 +570,10 @@ const fetchTracker = async () => {
     if (filters.from) params.from = filters.from
     if (filters.to) params.to = filters.to
     tracker.value = await apiClient.getExpenseTracker(params)
+    await inventoryStore.fetchSummary({
+      startDate: filters.from,
+      endDate: filters.to
+    })
   } catch (error) {
     errorMessage.value = error.message ?? 'Unable to load expense tracker.'
   } finally {

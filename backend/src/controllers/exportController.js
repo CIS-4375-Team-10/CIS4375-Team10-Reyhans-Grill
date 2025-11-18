@@ -370,7 +370,8 @@ export const exportExpenseReport = asyncHandler(async (req, res) => {
             NULL AS description
        FROM Purchase p
        JOIN Item i ON i.Item_ID = p.Item_ID
-      WHERE p.Purchase_Date BETWEEN ? AND ?
+      WHERE i.Is_Deleted = 0
+        AND p.Purchase_Date BETWEEN ? AND ?
       ORDER BY p.Purchase_Date ASC, p.Purchase_ID ASC`,
     [startDate, endDate]
   )
@@ -440,7 +441,7 @@ export const exportExpenseReport = asyncHandler(async (req, res) => {
   })
 
   const summaryRows = Array.from(summaryMap.values()).sort((a, b) =>
-    a.rangeStart.localeCompare(b.rangeStart)
+    String(a.rangeStart ?? '').localeCompare(String(b.rangeStart ?? ''))
   )
 
   const workbook = new ExcelJS.Workbook()
@@ -513,7 +514,7 @@ export const exportExpenseReport = asyncHandler(async (req, res) => {
 export const exportMaterialUsageLog = asyncHandler(async (req, res) => {
   const { fromDate, toDate } = materialUsageExportSchema.parse(req.query)
 
-  const clauses = []
+  const clauses = ['i.Is_Deleted = 0']
   const params = []
   if (fromDate) {
     clauses.push('mu.Usage_Date >= ?')
@@ -524,9 +525,11 @@ export const exportMaterialUsageLog = asyncHandler(async (req, res) => {
     params.push(`${toDate} 23:59:59`)
   }
 
-  const whereClause = clauses.length
-    ? `WHERE ${clauses.join(' AND ')}`
-    : 'WHERE mu.Usage_Date >= DATE_SUB(NOW(), INTERVAL 30 DAY)'
+  if (!fromDate && !toDate) {
+    clauses.push('mu.Usage_Date >= DATE_SUB(NOW(), INTERVAL 30 DAY)')
+  }
+
+  const whereClause = `WHERE ${clauses.join(' AND ')}`
 
   const [rows] = await pool.query(
     `SELECT mu.Usage_ID AS usageId,

@@ -4,7 +4,7 @@
 
     <div class="cards" v-if="!loadingSummary">
       <div class="card">
-        <h3>Total Materials</h3>
+        <h3>Total Unique Materials</h3>
         <p>{{ totalMaterials }}</p>
       </div>
       <div class="card">
@@ -18,14 +18,6 @@
       <div class="card">
         <h3>Expiring Soon</h3>
         <p>{{ expiringSoon.length }}</p>
-      </div>
-      <div class="card secondary-card">
-        <h3>Cutlery Low Stock</h3>
-        <p>{{ cutleryLowStock.length }}</p>
-      </div>
-      <div class="card secondary-card">
-        <h3>Serving Low Stock</h3>
-        <p>{{ servingLowStock.length }}</p>
       </div>
     </div>
     <div v-else class="status-message">Loading report data...</div>
