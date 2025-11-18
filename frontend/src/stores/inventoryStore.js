@@ -311,10 +311,10 @@ export const useInventoryStore = defineStore('inventory', {
     async fetchUsers() {
       this.users = await apiClient.getUsers()
     },
-    async fetchSummary(params) {
+    async fetchSummary() {
       this.loading.summary = true
       try {
-        this.summary = await apiClient.getDashboardSummary(params)
+        this.summary = await apiClient.getDashboardSummary()
       } catch (error) {
         this.setError(error.message ?? 'Unable to load dashboard summary')
         throw error

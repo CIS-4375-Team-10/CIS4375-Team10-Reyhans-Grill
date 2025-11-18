@@ -570,10 +570,7 @@ const fetchTracker = async () => {
     if (filters.from) params.from = filters.from
     if (filters.to) params.to = filters.to
     tracker.value = await apiClient.getExpenseTracker(params)
-    await inventoryStore.fetchSummary({
-      startDate: filters.from,
-      endDate: filters.to
-    })
+    await inventoryStore.fetchSummary()
   } catch (error) {
     errorMessage.value = error.message ?? 'Unable to load expense tracker.'
   } finally {

@@ -2,13 +2,10 @@ import { getPool } from '../db/pool.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { getInventorySettings } from '../services/settingsService.js'
 import { getExpenseRowsForRange } from './financeController.js'
-import { HttpError } from '../utils/httpError.js'
 
 const pool = getPool()
 
 const utensilCategoryIds = ['CAT_COOK', 'CAT_SERVE', 'CAT_BAKE', 'CAT_CUT', 'CAT_STORE']
-const dateRegex = /^\d{4}-\d{2}-\d{2}$/
-
 const formatDate = date => date.toISOString().slice(0, 10)
 
 const lastSevenDayRange = () => {
@@ -21,26 +18,11 @@ const lastSevenDayRange = () => {
   }
 }
 
-const buildSummaryRange = query => {
-  const fallback = lastSevenDayRange()
-  const from = query.startDate ?? fallback.from
-  const to = query.endDate ?? fallback.to
-
-  if (!dateRegex.test(from) || !dateRegex.test(to)) {
-    throw new HttpError(400, 'startDate and endDate must be in YYYY-MM-DD format')
-  }
-  if (from > to) {
-    throw new HttpError(400, 'startDate must be before endDate')
-  }
-
-  return { from, to }
-}
-
 export const getDashboardSummary = asyncHandler(async (req, res) => {
   const settings = await getInventorySettings()
   const threshold = Number(req.query.lowStock ?? settings.lowStockThreshold)
   const horizonDays = Number(req.query.expiringInDays ?? settings.expiringSoonDays)
-  const expenseRange = buildSummaryRange(req.query)
+  const expenseRange = lastSevenDayRange()
 
   const [[itemStats]] = await pool.query(
     `SELECT COUNT(*) AS totalItems,
@@ -134,8 +116,6 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
   `
   const [[utensilStats]] = await pool.query(utensilQuery, utensilCategoryIds)
 
-  // Expense tracker already computes totals across Expense + Purchase tables.
-  // Reuse the same helper so the dashboard "Weekly Cost" matches the tracker filters.
   const expenseData = await getExpenseRowsForRange(expenseRange)
 
   const materialsQuantity = Number(materialStats.materialsQuantity) || 0
@@ -151,7 +131,7 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
     lowStockCutlery,
     lowStockServing,
     utensilsInUse: utensilsQuantity,
-    recentSpend: expenseData.materialsInventoryTotal,
+    recentSpend: expenseData.inventoryTotal,
     inventorySettings: settings
   })
 })

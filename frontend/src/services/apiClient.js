@@ -152,7 +152,7 @@ export const apiClient = {
   getUsers: () => request('/users'),
 
   // Dashboard
-  getDashboardSummary: params => request(`/dashboard/summary${buildQueryString(params)}`),
+  getDashboardSummary: () => request('/dashboard/summary'),
 
   // Excel exports
   exportFullInventory: () => downloadExcel('/exports/inventory/full'),
