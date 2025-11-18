@@ -9,7 +9,7 @@ Full-stack capstone inventory system.
 ```sh
 cd backend
 npm install
-cp .env.example .env   # update with your DB credentials
+cp .env  # update with your DB credentials
 mysql -u <user> -p <db_name> < sql/schema.sql
 npm run dev
 ```

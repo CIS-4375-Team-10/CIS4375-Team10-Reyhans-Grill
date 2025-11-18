@@ -15,7 +15,7 @@ Node.js + Express service that exposes inventory data for the Vue frontend.
    npm install
    ```
 
-2. Copy the sample environment file and fill in your values
+2. Copy the environment file and fill in your values
 
    ```sh
    cp .env.example .env
