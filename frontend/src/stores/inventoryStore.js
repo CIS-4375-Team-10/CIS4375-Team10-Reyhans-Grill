@@ -96,6 +96,18 @@ export const useInventoryStore = defineStore('inventory', {
     recentSpend: state => state.summary?.recentSpend ?? 0,
     lowStockItems: state => state.summary?.lowStock ?? [],
     expiringSoonItems: state => state.summary?.expiringSoon ?? [],
+    materialsQuantity(state) {
+      if (state.summary?.materialsQuantity != null) {
+        return Number(state.summary.materialsQuantity) || 0
+      }
+      return state.materials.reduce((sum, item) => sum + Number(item.quantityInStock ?? 0), 0)
+    },
+    utensilsQuantity(state) {
+      if (state.summary?.utensilsQuantity != null) {
+        return Number(state.summary.utensilsQuantity) || 0
+      }
+      return state.utensils.reduce((sum, item) => sum + Number(item.quantityInStock ?? 0), 0)
+    },
     totalMaterialsCount() {
       return this.totalItemsCount
     },
@@ -107,6 +119,12 @@ export const useInventoryStore = defineStore('inventory', {
     },
     expiringSoonMaterials() {
       return this.expiringSoonItems
+    },
+    utensilsInUse(state) {
+      if (state.summary?.utensilsInUse != null) {
+        return Number(state.summary.utensilsInUse) || 0
+      }
+      return state.utensils.reduce((sum, item) => sum + Number(item.quantityInStock ?? 0), 0)
     },
     lowStockCutlery() {
       return this.summary?.lowStockCutlery ?? []

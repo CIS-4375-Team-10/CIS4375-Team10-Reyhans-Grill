@@ -135,23 +135,14 @@ onMounted(() => {
   }
 })
 
-const totalMaterials = computed(() => inventoryStore.totalMaterialsCount)
-const utensilsInUse = computed(() => inventoryStore.utensilsInUse)
+// Show the total quantity of materials in stock (not just unique SKUs)
+const totalMaterials = computed(() => inventoryStore.materialsQuantity)
+const utensilsInUse = computed(() => inventoryStore.utensilsQuantity)
 const weeklyCost = computed(() => inventoryStore.weeklyCostTotal.toFixed(2))
 const lowStockItems = computed(() => inventoryStore.lowStockMaterials.map(item => item.itemName))
 const expiringSoon = computed(() => inventoryStore.expiringSoonMaterials.map(item => item.itemName))
-const lowStockAlerts = computed(() =>
-  inventoryStore.items.filter(item => item.lowStockThreshold !== null && item.lowStockThreshold !== '' && item.lowStockThreshold !== undefined)
-)
-const expiringAlerts = computed(() =>
-  inventoryStore.items.filter(
-    item =>
-      item.expirationDate &&
-      item.expiringSoonDays !== null &&
-      item.expiringSoonDays !== '' &&
-      item.expiringSoonDays !== undefined
-  )
-)
+const lowStockAlerts = computed(() => inventoryStore.lowStockMaterials)
+const expiringAlerts = computed(() => inventoryStore.expiringSoonMaterials)
 const formatAlertQuantity = (item) => {
   const qty = Number(item.quantityInStock ?? 0)
   const unit = item.unit ? ` ${item.unit}` : ''

@@ -5,6 +5,7 @@
       Review your cash and electronic income alongside outgoing expenses for the selected period.
     </p>
 
+    <!-- Date filters power every API request on this page -->
     <section class="filters-card">
       <label>
         From
@@ -22,6 +23,7 @@
       </button>
     </section>
 
+    <!-- Export button lets the owner share a quick Excel summary -->
     <section class="export-report-card">
       <h3>Export Expense Report</h3>
       <p class="helper-text">
@@ -55,6 +57,7 @@
       </div>
     </section>
 
+    <!-- Snapshot cards show high-level totals for the selected date range -->
     <section v-if="tracker" class="summary-grid">
       <div class="summary-card income-card">
         <p>Electronic Income</p>
@@ -84,6 +87,7 @@
       </div>
     </section>
 
+    <!-- Input forms for adding or editing manual entries -->
     <section class="entry-grid" v-if="!isLoading">
       <div class="entry-card">
         <h3>Add Electronic Income</h3>
@@ -202,6 +206,7 @@
         </p>
       </div>
 
+      <!-- Optional helper card to import spreadsheets sent over email -->
       <div class="entry-card import-card">
         <h3>Import From Excel</h3>
         <p class="helper-text">
@@ -237,6 +242,7 @@
     <div v-if="isLoading" class="status-message">Loading expense tracker...</div>
     <div v-else-if="errorMessage" class="status-message error">{{ errorMessage }}</div>
 
+    <!-- Ledger tables list every row available along with edit/delete actions -->
     <section v-else-if="tracker" class="tables-wrapper">
       <div class="table-card">
         <div class="table-header">
@@ -389,31 +395,39 @@ import { computed, onMounted, reactive, ref } from 'vue'
 
 import { apiClient } from '../services/apiClient'
 
-const tracker = ref(null)
-const isLoading = ref(false)
-const errorMessage = ref('')
+// ----------------------------
+// Reactive state and helpers
+// ----------------------------
+const tracker = ref(null) // Entire expense-tracker payload returned from the API
+const isLoading = ref(false) // Toggles the loading states while we wait for the server
+const errorMessage = ref('') // Human-friendly message shown if the fetch fails
 
+// Filters that control the tables on the page (bound to the first card)
 const filters = reactive({
   from: '',
   to: ''
 })
 
+// Separate filters for the Excel export card so the owner can export a different window
 const expenseReportFilters = reactive({
   startDate: '',
   endDate: '',
   period: 'day'
 })
 
-const exportingExpenseReport = ref(false)
+const exportingExpenseReport = ref(false) // Prevent double-clicking the export button
 
+// Helper that always returns today's date in the same format our API expects
 const getToday = () => new Date().toISOString().slice(0, 10)
 
+// Form models for the three entry types -------------------
 const electronicForm = reactive({
   incomeDate: getToday(),
   channel: 'Card',
   amount: null,
   notes: ''
 })
+// Track which record is being edited (or deleted) so we can show progress states
 const editingElectronicId = ref(null)
 const deletingElectronicId = ref(null)
 
@@ -441,6 +455,7 @@ const importForm = reactive({
 })
 const importInput = ref(null)
 
+// `saving` flags disable submit buttons until the async request finishes
 const saving = reactive({
   electronic: false,
   cash: false,
@@ -448,6 +463,7 @@ const saving = reactive({
   import: false
 })
 
+// Store success/error text under each panel so feedback appears right next to the form
 const entryFeedback = reactive({
   electronic: { type: '', message: '' },
   cash: { type: '', message: '' },
@@ -455,10 +471,12 @@ const entryFeedback = reactive({
   import: { type: '', message: '' }
 })
 
+// Computed helpers that answer "are we editing something right now?"
 const isEditingExpense = computed(() => Boolean(editingExpenseId.value))
 const isEditingElectronic = computed(() => Boolean(editingElectronicId.value))
 const isEditingCash = computed(() => Boolean(editingCashId.value))
 
+// Change submit button text depending on whether we are editing or adding
 const expenseSubmitLabel = computed(() => {
   if (saving.expense) {
     return isEditingExpense.value ? 'Updating...' : 'Saving...'
@@ -480,28 +498,34 @@ const cashSubmitLabel = computed(() => {
   return isEditingCash.value ? 'Update Income' : 'Add Income'
 })
 
+// Tiny helper so each form can set its own success/error toast
 const setFeedback = (key, type, message) => {
   entryFeedback[key].type = type
   entryFeedback[key].message = message
 }
 
+// Dropdown options for the export period select input
 const periodOptions = [
   { label: 'Daily', value: 'day' },
   { label: 'Weekly', value: 'week' },
   { label: 'Monthly', value: 'month' }
 ]
 
+// Consistent USD formatting for tables and cards
 const formatCurrency = value =>
   Number(value ?? 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 
+// Keep table cells short by showing YYYY-MM-DD only
 const formatDate = value => {
   if (!value) return '-'
   return value.slice(0, 10)
 }
 
+// Timestamp string gets appended to exported filenames so nothing is overwritten
 const fileTimestamp = () =>
   new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')
 
+// Download helper used by both the expense report export and future exports
 const triggerDownload = (blob, filename) => {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
@@ -513,6 +537,7 @@ const triggerDownload = (blob, filename) => {
   URL.revokeObjectURL(url)
 }
 
+// Return the current calendar month (matches the backend default window)
 const getDefaultRange = () => {
   const now = new Date()
   const start = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -524,6 +549,7 @@ const getDefaultRange = () => {
 }
 
 const resetFilters = () => {
+  // Always reset to current month to match backend defaults.
   const range = getDefaultRange()
   filters.from = range.from
   filters.to = range.to
@@ -532,6 +558,7 @@ const resetFilters = () => {
   fetchTracker()
 }
 
+// Hit the `/finance/tracker` endpoint using whichever filters are active.
 const fetchTracker = async () => {
   if (isLoading.value) return
   try {
@@ -548,6 +575,7 @@ const fetchTracker = async () => {
   }
 }
 
+// Let the client download a summarized Excel file for tax prep
 const handleExportExpenseReport = async () => {
   try {
     if (!expenseReportFilters.startDate || !expenseReportFilters.endDate) {
@@ -573,6 +601,7 @@ const handleExportExpenseReport = async () => {
   }
 }
 
+// Reset helpers wipe the form + editing state once an action completes
 const resetElectronicForm = () => {
   electronicForm.incomeDate = getToday()
   electronicForm.channel = 'Card'
@@ -597,6 +626,7 @@ const resetExpenseForm = () => {
   editingExpenseId.value = null
 }
 
+// Submit/Add logic is the same for both create and edit flows—only the API call changes
 const submitElectronicIncome = async () => {
   setFeedback('electronic', '', '')
   if (!electronicForm.incomeDate || !electronicForm.channel || electronicForm.amount == null) {
@@ -627,6 +657,7 @@ const submitElectronicIncome = async () => {
   }
 }
 
+// Same workflow as electronic income but with fewer fields
 const submitCashIncome = async () => {
   setFeedback('cash', '', '')
   if (!cashForm.incomeDate || cashForm.amount == null) {
@@ -656,7 +687,9 @@ const submitCashIncome = async () => {
   }
 }
 
+// When clicking Edit in the electronic table, copy that row into the form
 const handleEditElectronicIncome = row => {
+  // Fill the electronic form with the selected row so the user can update it.
   editingElectronicId.value = row.electronicIncomeId
   electronicForm.incomeDate = row.incomeDate ? row.incomeDate.slice(0, 10) : getToday()
   electronicForm.channel = row.paymentType || 'Card'
@@ -670,6 +703,7 @@ const handleCancelElectronicEdit = () => {
 }
 
 const handleDeleteElectronicIncome = async row => {
+  // Simple browser confirm is good enough for this internal tool.
   const confirmed = window.confirm(`Delete ${row.paymentType} entry on ${formatDate(row.incomeDate)}?`)
   if (!confirmed) return
   try {
@@ -686,7 +720,9 @@ const handleDeleteElectronicIncome = async row => {
   }
 }
 
+// Cash rows reuse the exact same edit experience
 const handleEditCashIncome = row => {
+  // Same editing flow as electronic income.
   editingCashId.value = row.cashIncomeId
   cashForm.incomeDate = row.incomeDate ? row.incomeDate.slice(0, 10) : getToday()
   cashForm.amount = Number(row.amount ?? 0)
@@ -699,6 +735,7 @@ const handleCancelCashEdit = () => {
 }
 
 const handleDeleteCashIncome = async row => {
+  // Cash entries are always user-entered, so allow removal.
   const confirmed = window.confirm(`Delete cash entry on ${formatDate(row.incomeDate)}?`)
   if (!confirmed) return
   try {
@@ -715,6 +752,7 @@ const handleDeleteCashIncome = async row => {
   }
 }
 
+// Manual expense form mirrors the cash/electronic submitters
 const submitExpense = async () => {
   setFeedback('expense', '', '')
   if (
@@ -751,6 +789,7 @@ const submitExpense = async () => {
   }
 }
 
+// Only manual expenses can be edited/deleted; inventory rows stay read-only
 const handleEditExpense = row => {
   if (row.source !== 'manual') return
   editingExpenseId.value = row.expenseId
@@ -767,6 +806,7 @@ const handleCancelEditExpense = () => {
 }
 
 const handleDeleteExpense = async row => {
+  // Guard so system-generated inventory entries stay untouched
   if (row.source !== 'manual') return
   const confirmDelete = window.confirm(`Delete expense for ${row.paidTo}?`)
   if (!confirmDelete) return
@@ -784,11 +824,13 @@ const handleDeleteExpense = async row => {
   }
 }
 
+// Store whichever Excel file the user picked so we can send it with FormData
 const handleImportFile = event => {
   const file = event.target.files && event.target.files[0] ? event.target.files[0] : null
   importForm.file = file
 }
 
+// Upload the selected file and refresh the tracker when finished
 const handleImportExcel = async () => {
   setFeedback('import', '', '')
   if (!importForm.file) {
@@ -818,6 +860,7 @@ const handleImportExcel = async () => {
   }
 }
 
+// Kick off the first fetch as soon as the page mounts
 onMounted(() => {
   resetFilters()
 })

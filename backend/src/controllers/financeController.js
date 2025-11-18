@@ -5,21 +5,27 @@ import { getPool } from '../db/pool.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HttpError } from '../utils/httpError.js'
 
+// Central home for all finance-related endpoints (expense tracker + Excel import/export).
+// Every handler lives in this file so it is easier for non-dev teammates to find and tweak logic.
 const pool = getPool()
 
+// Shared validator for any YYYY-MM-DD date input coming from the UI.
 const dateString = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
 
+// Expense tracker filters. Both dates are optional so UI can default them later.
 const trackerQuerySchema = z.object({
   from: dateString.optional(),
   to: dateString.optional()
 })
 
+// Route params are strings, so coerce and validate IDs from the URL safely.
 const expenseIdParamSchema = z.object({
   id: z.coerce.number().int().positive()
 })
 
+// Validate a manual entry for UberEats/DoorDash/etc. These keys match the Vue form.
 const electronicIncomeSchema = z.object({
   incomeDate: dateString,
   channel: z.string().trim().min(1),
@@ -32,6 +38,7 @@ const electronicIncomeSchema = z.object({
     .transform(value => (value === undefined || value === '' ? null : value))
 })
 
+// Cash form only collects amount/date/notes so the schema is smaller.
 const cashIncomeSchema = z.object({
   incomeDate: dateString,
   amount: z.coerce.number().nonnegative(),
@@ -56,8 +63,11 @@ const expenseSchema = z.object({
   amount: z.coerce.number().nonnegative()
 })
 
+// Utility helpers -----------------------------------------------------------
+
 const formatDate = date => date.toISOString().slice(0, 10)
 
+// Default report window = the current calendar month.
 const defaultRange = () => {
   const now = new Date()
   const start = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -68,6 +78,7 @@ const defaultRange = () => {
   }
 }
 
+// Fill missing dates with defaults and ensure from <= to so reports never break.
 const normalizeRange = ({ from, to }) => {
   const fallback = defaultRange()
   const range = {
@@ -82,8 +93,10 @@ const normalizeRange = ({ from, to }) => {
   return range
 }
 
+// Convert DB DECIMAL values (which arrive as strings) to plain numbers for the UI.
 const toCurrencyNumber = value => Number(value ?? 0)
 
+// Format manual Expense rows so the UI can treat all expense sources the same.
 const mapManualExpense = row => ({
   expenseId: row.expenseId,
   expenseDate: row.expenseDate,
@@ -94,6 +107,7 @@ const mapManualExpense = row => ({
   source: 'manual'
 })
 
+// Purchases table also counts as expense data. Map it to the same shape.
 const mapInventoryPurchase = row => ({
   expenseId: row.purchaseId,
   expenseDate: row.purchaseDate,
@@ -104,6 +118,7 @@ const mapInventoryPurchase = row => ({
   source: 'inventory'
 })
 
+// Items that were directly added (without a Purchase row) are treated as inventory spend too.
 const mapInventoryItem = (row, fallbackDate) => {
   const quantity = Number(row.quantityInStock ?? 0)
   const unitCost = Number(row.unitCost ?? 0)
@@ -124,10 +139,19 @@ const mapInventoryItem = (row, fallbackDate) => {
   }
 }
 
+/**
+ * Build the full "expense tracker" payload consumed by the Vue page.
+ * Steps:
+ * 1. Parse optional ?from= / ?to= filters and fall back to the current month.
+ * 2. Fetch manual expenses, inventory purchases, and both income tables in parallel.
+ * 3. Normalize everything into a shared shape so the UI can render one combined table.
+ * 4. Return totals that let the UI display quick summary cards.
+ */
 export const getExpenseTrackerSnapshot = asyncHandler(async (req, res) => {
   const parsed = trackerQuerySchema.parse(req.query)
   const range = normalizeRange(parsed)
 
+  // Manual expenses keyed in through the UI.
   const expensePromise = pool.query(
     `SELECT Expense_ID AS expenseId,
             Expense_Date AS expenseDate,
@@ -141,6 +165,7 @@ export const getExpenseTrackerSnapshot = asyncHandler(async (req, res) => {
     [range.from, range.to]
   )
 
+  // Cash drawer deposits / corrections.
   const cashPromise = pool.query(
     `SELECT Cash_ID AS cashIncomeId,
             Income_Date AS incomeDate,
@@ -152,6 +177,7 @@ export const getExpenseTrackerSnapshot = asyncHandler(async (req, res) => {
     [range.from, range.to]
   )
 
+  // Online channels such as DoorDash/UberEats.
   const electronicPromise = pool.query(
     `SELECT Electronic_ID AS electronicIncomeId,
             Income_Date AS incomeDate,
@@ -164,6 +190,7 @@ export const getExpenseTrackerSnapshot = asyncHandler(async (req, res) => {
     [range.from, range.to]
   )
 
+  // Inventory purchases with explicit Purchase rows.
   const inventoryPromise = pool.query(
     `SELECT p.Purchase_ID AS purchaseId,
             p.Purchase_Date AS purchaseDate,
@@ -179,6 +206,7 @@ export const getExpenseTrackerSnapshot = asyncHandler(async (req, res) => {
     [range.from, range.to]
   )
 
+  // Inventory items added without purchase rows still count as expenses.
   const inventoryFromItemsPromise = pool.query(
     `SELECT i.Item_ID AS itemId,
             i.Item_Name AS itemName,
@@ -200,6 +228,7 @@ export const getExpenseTrackerSnapshot = asyncHandler(async (req, res) => {
     [range.from, range.to]
   )
 
+  // Run every query at once to keep the API snappy even with large data sets.
   const [[expenses], [cash], [electronic], [inventoryPurchases], [inventoryItems]] = await Promise.all([
     expensePromise,
     cashPromise,
@@ -208,6 +237,7 @@ export const getExpenseTrackerSnapshot = asyncHandler(async (req, res) => {
     inventoryFromItemsPromise
   ])
 
+  // Build flat lists that contain both manual expenses and inventory purchases.
   const manualExpenseRows = expenses.map(mapManualExpense)
   const inventoryExpenseRows = [
     ...inventoryPurchases.map(mapInventoryPurchase),
@@ -216,6 +246,7 @@ export const getExpenseTrackerSnapshot = asyncHandler(async (req, res) => {
       .filter(Boolean)
   ]
 
+  // Merge, then sort by date so the table shows a true chronological ledger.
   const combinedExpenses = [...manualExpenseRows, ...inventoryExpenseRows].sort((a, b) => {
     if (a.expenseDate === b.expenseDate) {
       return (a.expenseId ?? 0) < (b.expenseId ?? 0) ? -1 : 1
@@ -223,6 +254,7 @@ export const getExpenseTrackerSnapshot = asyncHandler(async (req, res) => {
     return a.expenseDate < b.expenseDate ? -1 : 1
   })
 
+  // Totals feed the summary cards on top of the page.
   const manualTotal = manualExpenseRows.reduce((sum, row) => sum + row.amount, 0)
   const inventoryTotal = inventoryExpenseRows.reduce((sum, row) => sum + row.amount, 0)
   const expenseTotal = manualTotal + inventoryTotal
@@ -232,6 +264,7 @@ export const getExpenseTrackerSnapshot = asyncHandler(async (req, res) => {
     0
   )
 
+  // Final payload is purposely verbose so the frontend does not have to massage numbers.
   res.json({
     range,
     expenses: {
@@ -263,8 +296,10 @@ export const getExpenseTrackerSnapshot = asyncHandler(async (req, res) => {
   })
 })
 
+// Helper that mirrors "SELECT ... WHERE id = ? LIMIT 1" patterns.
 const singleRow = rows => rows[0]
 
+// ------------- CRUD: Electronic Income -------------------------------------
 export const createElectronicIncome = asyncHandler(async (req, res) => {
   const payload = electronicIncomeSchema.parse(req.body)
   const [result] = await pool.query(
@@ -287,6 +322,7 @@ export const createElectronicIncome = asyncHandler(async (req, res) => {
   res.status(201).json(singleRow(rows))
 })
 
+// Same idea as above but for cash drawer lines.
 export const createCashIncome = asyncHandler(async (req, res) => {
   const payload = cashIncomeSchema.parse(req.body)
   const [result] = await pool.query(
@@ -308,6 +344,7 @@ export const createCashIncome = asyncHandler(async (req, res) => {
   res.status(201).json(singleRow(rows))
 })
 
+// PATCH handler so the UI can edit in place.
 export const updateElectronicIncome = asyncHandler(async (req, res) => {
   const { id } = expenseIdParamSchema.parse(req.params)
   const payload = electronicIncomeSchema.partial().parse(req.body)
@@ -316,6 +353,7 @@ export const updateElectronicIncome = asyncHandler(async (req, res) => {
     throw new HttpError(400, 'No fields provided for update')
   }
 
+  // Translate API keys to real column names before building SQL.
   const mapping = {
     incomeDate: 'Income_Date',
     channel: 'Channel',
@@ -323,6 +361,7 @@ export const updateElectronicIncome = asyncHandler(async (req, res) => {
     notes: 'Notes'
   }
 
+  // Build `SET col = ?` clauses dynamically, only for the fields that changed.
   const fields = []
   const values = []
   entries.forEach(([key, value]) => {
@@ -373,6 +412,7 @@ export const updateCashIncome = asyncHandler(async (req, res) => {
     throw new HttpError(400, 'No fields provided for update')
   }
 
+  // Reuse the mapping logic from the electronic handler.
   const mapping = {
     incomeDate: 'Income_Date',
     amount: 'Amount',
@@ -411,6 +451,7 @@ export const updateCashIncome = asyncHandler(async (req, res) => {
   res.json(rows[0])
 })
 
+// Deleting cash lines follows the exact same flow as electronic income.
 export const deleteCashIncome = asyncHandler(async (req, res) => {
   const { id } = expenseIdParamSchema.parse(req.params)
   const [result] = await pool.query(`DELETE FROM Cash_Income WHERE Cash_ID = ?`, [id])
@@ -420,6 +461,7 @@ export const deleteCashIncome = asyncHandler(async (req, res) => {
   res.status(204).send()
 })
 
+// ------------- CRUD: Manual Expense table ----------------------------------
 export const createExpenseEntry = asyncHandler(async (req, res) => {
   const payload = expenseSchema.parse(req.body)
   const [result] = await pool.query(
@@ -428,6 +470,7 @@ export const createExpenseEntry = asyncHandler(async (req, res) => {
     [payload.expenseDate, payload.paymentType, payload.paidTo, payload.description ?? null, payload.amount]
   )
 
+  // Fetch the freshly inserted row so the frontend can display it immediately.
   const [rows] = await pool.query(
     `SELECT Expense_ID AS expenseId,
             Expense_Date AS expenseDate,
@@ -443,7 +486,10 @@ export const createExpenseEntry = asyncHandler(async (req, res) => {
   res.status(201).json(singleRow(rows))
 })
 
+// Utility helpers for Excel import ------------------------------------------
 const normalizeDateValue = raw => {
+  // Excel users may upload strings, numbers, or Date objects in the same column.
+  // This helper tries to understand all of those shapes and converts them into YYYY-MM-DD.
   if (raw == null) return null
   if (raw instanceof Date) {
     return formatDate(raw)
@@ -471,12 +517,14 @@ const normalizeDateValue = raw => {
 }
 
 const toNumber = raw => {
+  // Excel often leaves thousands separators or blank cells. Guard those cases gracefully.
   if (raw == null || raw === '') return null
   const num = Number(raw)
   return Number.isNaN(num) ? null : num
 }
 
 const importParsers = {
+  // Parse manual expense spreadsheets.
   expenses: worksheet => {
     const headers = mapHeaders(worksheet.getRow(1))
     const dateIdx = headers.date ?? 1
@@ -502,6 +550,7 @@ const importParsers = {
     })
     return rows
   },
+  // Parse cash income spreadsheets.
   cash: worksheet => {
     const headers = mapHeaders(worksheet.getRow(1))
     const dateIdx = headers.date ?? 1
@@ -523,6 +572,7 @@ const importParsers = {
     })
     return rows
   },
+  // Parse electronic income spreadsheets (DoorDash, etc.).
   electronic: worksheet => {
     const headers = mapHeaders(worksheet.getRow(1))
     const dateIdx = headers.date ?? 1
@@ -549,6 +599,8 @@ const importParsers = {
 }
 
 const cellText = cell => {
+  // ExcelJS exposes several properties depending on how a cell is formatted.
+  // This helper makes sure we always end up with a trimmed string.
   if (!cell) return ''
   if (typeof cell.text === 'string' && cell.text.trim() !== '') {
     return cell.text.trim()
@@ -564,6 +616,7 @@ const cellText = cell => {
 }
 
 const mapHeaders = headerRow => {
+  // Look at the first row and try to guess which column matches which field.
   const map = {}
   const source = headerRow?.values ?? []
   const normalized = source.map(value =>
@@ -585,6 +638,8 @@ const mapHeaders = headerRow => {
 }
 
 export const importFinanceEntries = asyncHandler(async (req, res) => {
+  // Keep the API simple: the UI tells us what kind of sheet is being uploaded
+  // and we pick the parser, validate rows, and insert them inside a transaction.
   const type = String(req.body?.type ?? '').trim().toLowerCase()
   if (!['expenses', 'cash', 'electronic'].includes(type)) {
     throw new HttpError(400, 'type must be one of expenses, cash, or electronic')
@@ -610,6 +665,7 @@ export const importFinanceEntries = asyncHandler(async (req, res) => {
   const connection = await pool.getConnection()
   try {
     await connection.beginTransaction()
+    // Insert each row individually. The tables are small so readability beats bulk inserts.
     if (type === 'expenses') {
       for (const entry of entries) {
         await connection.query(
@@ -644,6 +700,7 @@ export const importFinanceEntries = asyncHandler(async (req, res) => {
 
     await connection.commit()
   } catch (error) {
+    // Roll back everything if one row fails so data never ends up half-imported.
     await connection.rollback()
     throw error
   } finally {
@@ -656,6 +713,7 @@ export const importFinanceEntries = asyncHandler(async (req, res) => {
   })
 })
 
+// Mirror the update flow from the income handlers.
 export const updateExpenseEntry = asyncHandler(async (req, res) => {
   const { id } = expenseIdParamSchema.parse(req.params)
   const payload = expenseSchema.partial().parse(req.body)
@@ -707,6 +765,7 @@ export const updateExpenseEntry = asyncHandler(async (req, res) => {
   res.json(rows[0])
 })
 
+// Simple delete with 404 guard so the UI can surface a friendly error.
 export const deleteExpenseEntry = asyncHandler(async (req, res) => {
   const { id } = expenseIdParamSchema.parse(req.params)
   const [result] = await pool.query(`DELETE FROM Expense WHERE Expense_ID = ?`, [id])

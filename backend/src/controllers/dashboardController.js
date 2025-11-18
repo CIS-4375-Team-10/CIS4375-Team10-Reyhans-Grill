@@ -77,11 +77,29 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
   )
 
   const utensilPlaceholders = utensilCategoryIds.map(() => '?').join(', ')
-  const utensilQuery = `
-    SELECT IFNULL(SUM(Quantity_in_Stock), 0) AS utensilsInUse
+
+  const materialQuantityQuery = `
+    SELECT IFNULL(SUM(Quantity_in_Stock), 0) AS materialsQuantity
       FROM Item
      WHERE Is_Deleted = 0
-       AND Category_ID IN (${utensilPlaceholders})
+       AND (
+             UPPER(IFNULL(Item_Type, '')) = 'MATERIAL'
+          OR (
+                UPPER(IFNULL(Item_Type, '')) <> 'UTENSIL'
+                AND (Category_ID IS NULL OR Category_ID NOT IN (${utensilPlaceholders}))
+             )
+         )
+  `
+  const [[materialStats]] = await pool.query(materialQuantityQuery, utensilCategoryIds)
+
+  const utensilQuery = `
+    SELECT IFNULL(SUM(Quantity_in_Stock), 0) AS utensilsQuantity
+      FROM Item
+     WHERE Is_Deleted = 0
+       AND (
+             UPPER(IFNULL(Item_Type, '')) = 'UTENSIL'
+             OR Category_ID IN (${utensilPlaceholders})
+           )
   `
   const [[utensilStats]] = await pool.query(utensilQuery, utensilCategoryIds)
 
@@ -92,14 +110,19 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
         AND Created_At >= DATE_SUB(NOW(), INTERVAL 7 DAY)`
   )
 
+  const materialsQuantity = Number(materialStats.materialsQuantity) || 0
+  const utensilsQuantity = Number(utensilStats.utensilsQuantity) || 0
+
   res.json({
     totalItems: Number(itemStats.totalItems) || 0,
     totalQuantity: Number(itemStats.totalQuantity) || 0,
+    materialsQuantity,
+    utensilsQuantity,
     lowStock: lowStockRows,
     expiringSoon: expiringRows,
     lowStockCutlery,
     lowStockServing,
-    utensilsInUse: Number(utensilStats.utensilsInUse) || 0,
+    utensilsInUse: utensilsQuantity,
     recentSpend: Number(spendStats.recentSpend) || 0,
     inventorySettings: settings
   })

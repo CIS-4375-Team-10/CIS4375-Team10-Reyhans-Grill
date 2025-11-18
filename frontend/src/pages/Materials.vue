@@ -150,6 +150,8 @@
             <th>Shelf Life (days)</th>
             <th>Date Added</th>
             <th v-if="inventoryType === 'MATERIAL'">Expiration</th>
+            <th v-if="inventoryType === 'MATERIAL'">Low Stock Threshold</th>
+            <th v-if="inventoryType === 'MATERIAL'">Expiring Soon (days)</th>
             <th class="actions-col">Actions</th>
           </tr>
         </thead>
@@ -162,6 +164,8 @@
             <td>{{ formatShelfLife(item.shelfLifeDays) }}</td>
             <td>{{ formatDisplayDate(item.purchaseDate) }}</td>
             <td v-if="inventoryType === 'MATERIAL'">{{ formatDisplayDate(item.expirationDate) }}</td>
+            <td v-if="inventoryType === 'MATERIAL'">{{ formatLowStockValue(item) }}</td>
+            <td v-if="inventoryType === 'MATERIAL'">{{ formatExpiringSoonValue(item) }}</td>
             <td>
               <button class="edit-button" type="button" @click="startEdit(item)">
                 Edit
@@ -522,6 +526,32 @@ const formatUnitLabel = unitValue => {
   if (!unitValue) return '-'
   const normalized = unitValue.toLowerCase()
   return unitLabelMap[normalized] ?? normalized
+}
+
+const toOptionalNumber = value => {
+  if (value === '' || value === null || value === undefined) return null
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) ? numericValue : null
+}
+
+const formatLowStockValue = item => {
+  const customValue = toOptionalNumber(item.lowStockThreshold)
+  if (customValue != null) return customValue
+
+  const defaultValue = toOptionalNumber(globalSettings.value?.lowStockThreshold)
+  if (defaultValue != null) return `${defaultValue} (default)`
+
+  return 'Not set'
+}
+
+const formatExpiringSoonValue = item => {
+  const customValue = toOptionalNumber(item.expiringSoonDays)
+  if (customValue != null) return customValue
+
+  const defaultValue = toOptionalNumber(globalSettings.value?.expiringSoonDays)
+  if (defaultValue != null) return `${defaultValue} (default)`
+
+  return 'Not set'
 }
 
 // Watchers
