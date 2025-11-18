@@ -1,0 +1,63 @@
+92ceecb | John Buckley | 2025-11-17 22:48:24 -0600 | Too many fixes to list, App v.0.9
+eb602c2 | John Buckley | 2025-11-17 20:00:53 -0600 | reverted total cost function, instead client will put price per pound. Fixed inventory alerts
+48aa1ef | John Buckley | 2025-11-17 17:58:30 -0600 | Merge branch 'main' of https://github.com/CIS-4375-Team-10/CIS4375-Team10-Reyhans-Grill
+db737f8 | John Buckley | 2025-11-17 17:58:28 -0600 | added ability to edit and delete all expenses
+f006257 | phngu | 2025-11-17 16:59:27 -0600 | Merge branch 'main' of https://github.com/CIS-4375-Team-10/CIS4375-Team10-Reyhans-Grill
+1ea618b | phngu | 2025-11-17 16:59:21 -0600 | fix background
+5470098 | John Buckley | 2025-11-17 16:45:08 -0600 | Added qty listing below inventory distribution pie chart
+43ffbbc | John Buckley | 2025-11-17 16:37:53 -0600 | Moved Expense Report export to expense tracker page
+ecaff7b | John Buckley | 2025-11-17 16:10:33 -0600 | Merge branch 'main' of https://github.com/CIS-4375-Team-10/CIS4375-Team10-Reyhans-Grill
+21159a2 | John Buckley | 2025-11-17 16:10:30 -0600 | Fixed validation errors
+99ecc19 | phngu | 2025-11-17 13:34:35 -0600 | fix background
+70c1717 | John Buckley | 2025-11-17 12:53:36 -0600 | Merge pull request #7 from CIS-4375-Team-10/Prototype-2.0-(I'm-breaking-things)
+81a2e32 | John Buckley | 2025-11-17 12:51:10 -0600 | Merge branch 'main' into Prototype-2.0-(I'm-breaking-things)
+92bf4e4 | John Buckley | 2025-11-17 12:46:45 -0600 | Final changes, hopefully just bug fixes
+3332f04 | John Buckley | 2025-11-17 11:22:45 -0600 | Added materials used functionality to log what was used at end of business day
+8da6323 | John Buckley | 2025-11-17 10:37:02 -0600 | Need to fix alerts
+c5f5261 | John Buckley | 2025-11-17 09:10:41 -0600 | Added delete permanently option, removed status box for being unneccesary
+5cc4e2c | John Buckley | 2025-11-17 00:28:58 -0600 | Added inventory alerts to dashboard, added materials used page
+755bcfb | John Buckley | 2025-11-16 23:44:23 -0600 | Switched from hardcoded to real dataset expenses bar chart, finished adding real use case inventory items
+5dfc39b | John Buckley | 2025-11-16 22:49:02 -0600 | added descriptions above boxes
+0fdd2ce | phngu | 2025-11-16 21:47:12 -0600 | added  reyhan grill logo to login pg
+fa2094b | John Buckley | 2025-11-16 13:13:32 -0600 | Fixed vue error
+9a54e67 | John Buckley | 2025-11-16 11:29:57 -0600 | Made it to where unselected sub-categories aren't green
+f60b122 | John Buckley | 2025-11-16 11:23:01 -0600 | Added used inventory function to allow client to subtract from inventory at end of business day (needs testing)
+a457414 | John Buckley | 2025-11-16 10:52:01 -0600 | Added unit/unit type/ unit cost inventory function
+b792cfc | John Buckley | 2025-11-16 10:27:02 -0600 | Login page title
+b0feee8 | John Buckley | 2025-11-16 09:54:42 -0600 | Fixed deleted items adding to total quantity, added daily/weekly/monthly inventory/expenses tracking support (haven't tested)
+f4cc7d1 | phngu | 2025-11-16 09:17:13 -0600 | Merge pull request #6 from CIS-4375-Team-10/Phuc_Branch_2
+73c78ca | phngu | 2025-11-16 09:16:43 -0600 | add years
+4b04cae | phngu | 2025-11-16 02:01:58 -0600 | Fix background
+06c3781 | phngu | 2025-11-16 01:46:52 -0600 | added bargraph
+d6ac3c9 | phngu | 2025-11-16 01:09:20 -0600 | update color and merge Materials and utensils
+26644ce | John Buckley | 2025-11-15 19:32:04 -0600 | Merge pull request #5 from CIS-4375-Team-10/Prototype
+d158213 | Hughes Izah | 2025-11-15 13:47:36 -0600 | expense rtracker update
+3453d77 | Tawhida Farrag | 2025-11-14 15:39:44 -0600 | Merge pull request #4 from CIS-4375-Team-10/Taw-branch
+67bba07 | TawHFar | 2025-11-14 15:38:08 -0600 | color changes
+ec0df18 | John Buckley | 2025-11-11 17:18:57 -0600 | Removed .env from gitignore
+d7678fe | Ryker Workman | 2025-11-11 14:26:35 -0600 | Is this on main or ryker branch
+51f8ab4 | Ryker Workman | 2025-11-11 14:22:12 -0600 | Ryker testing commit 1
+964e810 | phngu | 2025-11-11 13:32:16 -0600 | Merge pull request #2 from sanjanahossai/Sanjana-Branch
+3b5e3f9 | sanjanahossai | 2025-11-11 13:29:46 -0600 | testing
+ee96846 | John Buckley | 2025-11-11 11:57:12 -0600 | Fixed weekly cost not updating
+f0fcf36 | John Buckley | 2025-11-11 11:45:05 -0600 | Fixed utensils not showing up on utensil page
+49e17bf | John Buckley | 2025-11-11 10:31:48 -0600 | Added edit/delete/undo functionality for the webapp
+e2e7d48 | John Buckley | 2025-11-10 13:00:50 -0600 | Fixed broken emojis on frontend, still requires testing
+8a48caa | sanjanahossai | 2025-11-10 12:21:02 -0600 | Test commit
+bc3cdec | John Buckley | 2025-11-10 00:59:04 -0600 | Prototype, working connection, bugs, fix schema and frontend connection
+0bb0917 | phngu | 2025-10-27 11:26:55 -0500 | Reyhan’s Grill_Logo
+bc63680 | phngu | 2025-10-21 14:06:23 -0500 | Merge pull request #1 from CIS-4375-Team-10/Phuc_N_Branch
+11f72e0 | phngu | 2025-10-21 14:05:25 -0500 | Reyhan’s Grill_Update_1
+dc947c2 | phngu | 2025-10-21 13:42:50 -0500 | Reyhan’s Grill_Update
+790bd60 | phngu | 2025-10-20 17:34:19 -0500 | Reyhan’s Grill_Update
+1bb15fb | phngu | 2025-10-20 17:06:22 -0500 | Reyhan’s Grill_orders
+244b016 | phngu | 2025-10-19 13:19:14 -0500 | Reyhan’s Grill_add forms
+fc8b268 | phngu | 2025-10-17 14:08:57 -0500 | Reyhan’s Grill update
+b75d6cb | phngu | 2025-10-17 13:46:02 -0500 | Reyhan’s Grill example_materials_1
+ccb9106 | phngu | 2025-10-17 13:37:11 -0500 | Reyhan’s Grill example_materials
+bd925c2 | phngu | 2025-10-17 13:09:36 -0500 | Reyhan’s Grill example_2
+0d2a4f1 | phngu | 2025-10-17 12:49:16 -0500 | Reyhan’s Grill example
+9f378c4 | phngu | 2025-10-14 18:30:34 -0500 | Reyhan’s Grill inventory login pg
+e377ddf | phngu | 2025-10-08 20:00:34 -0500 | Reyhan’s Grill inventory template
+db76fe0 | phngu | 2025-10-08 19:48:55 -0500 | Reyhan’s Grill inventory template
+aa539cd | John Buckley | 2025-10-08 19:06:30 -0500 | Initial commit
