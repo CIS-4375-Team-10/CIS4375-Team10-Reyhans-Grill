@@ -48,7 +48,7 @@ const logout = async () => {
 
 <style scoped>
 nav {
-  background-color: #1a3f31;
+  background-color: #090909;
   color: #fff;
   padding: 12px 24px;
   display: flex;
