@@ -1,3 +1,4 @@
+1.0 (just added some helpful comments ✌️) - John
 92ceecb | John Buckley | 2025-11-17 22:48:24 -0600 | Too many fixes to list, App v.0.9
 eb602c2 | John Buckley | 2025-11-17 20:00:53 -0600 | reverted total cost function, instead client will put price per pound. Fixed inventory alerts
 48aa1ef | John Buckley | 2025-11-17 17:58:30 -0600 | Merge branch 'main' of https://github.com/CIS-4375-Team-10/CIS4375-Team10-Reyhans-Grill
