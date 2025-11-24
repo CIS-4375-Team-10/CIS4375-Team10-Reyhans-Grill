@@ -9,19 +9,25 @@ const utensilCategoryIds = ['CAT_COOK', 'CAT_SERVE', 'CAT_BAKE', 'CAT_CUT', 'CAT
 const formatDate = date => date.toISOString().slice(0, 10)
 
 const lastSevenDayRange = () => {
+  // Include the current (in-progress) day plus the prior 6 days
   const today = new Date()
-  const start = new Date(today)
+  const end = new Date(today)
+
+  const start = new Date(end)
   start.setDate(start.getDate() - 6)
+
   return {
     from: formatDate(start),
-    to: formatDate(today)
+    to: formatDate(end)
   }
 }
 
 export const getDashboardSummary = asyncHandler(async (req, res) => {
   const settings = await getInventorySettings()
   const threshold = Number(req.query.lowStock ?? settings.lowStockThreshold)
-  const horizonDays = Number(req.query.expiringInDays ?? settings.expiringSoonDays)
+  const requestedExpiring = req.query.expiringInDays
+  const usePerItemWindow = requestedExpiring == null
+  const horizonDays = Number(requestedExpiring ?? settings.expiringSoonDays)
   const expenseRange = lastSevenDayRange()
 
   const [[itemStats]] = await pool.query(
@@ -73,6 +79,7 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
     [threshold]
   )
 
+  const windowExpr = usePerItemWindow ? 'COALESCE(i.Expiring_Soon_Days, ?)' : '?'
   const [expiringRows] = await pool.query(
     `SELECT i.Item_ID AS itemId,
             i.Item_Name AS itemName,
@@ -80,13 +87,14 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
             i.Unit AS unit,
             i.Purchase_Date AS purchaseDate,
             i.Expiration_Date AS expirationDate,
-            COALESCE(i.Expiring_Soon_Days, ?) AS expiringWindowDays
+            ${windowExpr} AS expiringWindowDays
        FROM Item i
       WHERE i.Is_Deleted = 0
         AND i.Expiration_Date IS NOT NULL
-        AND i.Expiration_Date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL COALESCE(i.Expiring_Soon_Days, ?) DAY)
+        AND i.Expiration_Date BETWEEN CURDATE()
+            AND DATE_ADD(CURDATE(), INTERVAL ${windowExpr} DAY)
       ORDER BY i.Expiration_Date ASC`,
-    [horizonDays, horizonDays]
+    usePerItemWindow ? [horizonDays, horizonDays] : [horizonDays, horizonDays]
   )
 
   const utensilPlaceholders = utensilCategoryIds.map(() => '?').join(', ')
