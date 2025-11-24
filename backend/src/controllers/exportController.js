@@ -284,9 +284,7 @@ export const exportLowStockInventory = asyncHandler(async (req, res) => {
 export const exportExpiringInventory = asyncHandler(async (req, res) => {
   const settings = await getInventorySettings()
   const { expiringInDays } = expiringQuerySchema.parse(req.query)
-  const usePerItemWindow = expiringInDays == null
   const windowDays = expiringInDays ?? settings.expiringSoonDays
-  const windowExpr = usePerItemWindow ? 'COALESCE(i.Expiring_Soon_Days, ?)' : '?'
 
   const [rows] = await pool.query(
     `SELECT i.Item_Name AS itemName,
@@ -296,15 +294,15 @@ export const exportExpiringInventory = asyncHandler(async (req, res) => {
             i.Purchase_Date AS purchaseDate,
             i.Expiration_Date AS expirationDate,
             DATEDIFF(i.Expiration_Date, CURDATE()) AS daysRemaining,
-            ${windowExpr} AS windowDays
+            ? AS windowDays
        FROM Item i
        JOIN Category c ON c.Category_ID = i.Category_ID
       WHERE i.Is_Deleted = 0
         AND i.Expiration_Date IS NOT NULL
         AND i.Expiration_Date BETWEEN CURDATE()
-            AND DATE_ADD(CURDATE(), INTERVAL ${windowExpr} DAY)
+            AND DATE_ADD(CURDATE(), INTERVAL ? DAY)
       ORDER BY i.Expiration_Date ASC`,
-    usePerItemWindow ? [windowDays, windowDays] : [windowDays, windowDays]
+    [windowDays, windowDays]
   )
 
   const workbook = new ExcelJS.Workbook()

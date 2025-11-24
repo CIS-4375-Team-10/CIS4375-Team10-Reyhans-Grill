@@ -25,9 +25,8 @@ const lastSevenDayRange = () => {
 export const getDashboardSummary = asyncHandler(async (req, res) => {
   const settings = await getInventorySettings()
   const threshold = Number(req.query.lowStock ?? settings.lowStockThreshold)
-  const requestedExpiring = req.query.expiringInDays
-  const usePerItemWindow = requestedExpiring == null
-  const horizonDays = Number(requestedExpiring ?? settings.expiringSoonDays)
+  // Expiring soon window is driven by the saved setting unless a query override is provided.
+  const horizonDays = Number(req.query.expiringInDays ?? settings.expiringSoonDays)
   const expenseRange = lastSevenDayRange()
 
   const [[itemStats]] = await pool.query(
@@ -79,7 +78,6 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
     [threshold]
   )
 
-  const windowExpr = usePerItemWindow ? 'COALESCE(i.Expiring_Soon_Days, ?)' : '?'
   const [expiringRows] = await pool.query(
     `SELECT i.Item_ID AS itemId,
             i.Item_Name AS itemName,
@@ -87,14 +85,14 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
             i.Unit AS unit,
             i.Purchase_Date AS purchaseDate,
             i.Expiration_Date AS expirationDate,
-            ${windowExpr} AS expiringWindowDays
+            ? AS expiringWindowDays
        FROM Item i
       WHERE i.Is_Deleted = 0
         AND i.Expiration_Date IS NOT NULL
         AND i.Expiration_Date BETWEEN CURDATE()
-            AND DATE_ADD(CURDATE(), INTERVAL ${windowExpr} DAY)
+            AND DATE_ADD(CURDATE(), INTERVAL ? DAY)
       ORDER BY i.Expiration_Date ASC`,
-    usePerItemWindow ? [horizonDays, horizonDays] : [horizonDays, horizonDays]
+    [horizonDays, horizonDays]
   )
 
   const utensilPlaceholders = utensilCategoryIds.map(() => '?').join(', ')

@@ -7,7 +7,7 @@
         <div class="card">
           <div class="icon">🥩</div>
           <div class="info">
-        <h3>Total Unique Materials</h3>
+        <h3>Materials</h3>
             <p>{{ totalMaterials }}</p>
           </div>
         </div>
@@ -15,7 +15,7 @@
         <div class="card">
           <div class="icon">🍴</div>
           <div class="info">
-            <h3>Utensils in Use</h3>
+            <h3>Utensils</h3>
             <p>{{ utensilsInUse }}</p>
           </div>
         </div>

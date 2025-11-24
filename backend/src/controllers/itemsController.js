@@ -87,6 +87,29 @@ const itemSchema = z.object({
     .optional()
 })
 
+// If no explicit expiration is provided, derive it from purchase date + shelf life days.
+const deriveExpirationDate = (purchaseDate, shelfLifeDays) => {
+  if (!purchaseDate || shelfLifeDays === undefined || shelfLifeDays === null) return undefined
+
+  const normalizedPurchaseDate =
+    purchaseDate instanceof Date
+      ? purchaseDate.toISOString().slice(0, 10)
+      : typeof purchaseDate === 'string'
+        ? purchaseDate
+        : null
+
+  if (!normalizedPurchaseDate) return undefined
+
+  const days = Number(shelfLifeDays)
+  if (Number.isNaN(days)) return undefined
+
+  const date = new Date(`${normalizedPurchaseDate}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return undefined
+
+  date.setDate(date.getDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
 const usageLogSchema = z.object({
   usedQuantity: z.coerce
     .number()
@@ -135,6 +158,13 @@ export const createItem = asyncHandler(async (req, res) => {
   const payload = itemSchema.parse(req.body)
   const itemId = generateId('ITM_', 20)
 
+  const hasExpirationField = Object.prototype.hasOwnProperty.call(payload, 'expirationDate')
+  const derivedExpiration = deriveExpirationDate(payload.purchaseDate, payload.shelfLifeDays)
+  const computedExpiration =
+    hasExpirationField && payload.expirationDate != null
+      ? payload.expirationDate
+      : derivedExpiration ?? null
+
   await pool.query(
     `INSERT INTO Item
       (Item_ID, Item_Name, Category_ID, Quantity_in_Stock, Unit, Unit_Cost, Purchase_Date, Low_Stock_Threshold, Expiring_Soon_Days, Shelf_Life_Days, Expiration_Date, Status, Item_Type, Par_Level, Reorder_Point)
@@ -150,7 +180,7 @@ export const createItem = asyncHandler(async (req, res) => {
       payload.lowStockThreshold ?? null,
       payload.expiringSoonDays ?? null,
       payload.shelfLifeDays,
-      payload.expirationDate || null,
+      computedExpiration,
       payload.status,
       payload.itemType,
       payload.parLevel ?? 0,
@@ -188,6 +218,19 @@ export const updateItem = asyncHandler(async (req, res) => {
   const { id } = paramsSchema.parse(req.params)
   const payload = itemSchema.partial().parse(req.body)
 
+  const [existingRows] = await pool.query(
+    `SELECT Purchase_Date AS purchaseDate, Shelf_Life_Days AS shelfLifeDays
+       FROM Item
+      WHERE Item_ID = ? AND Is_Deleted = 0`,
+    [id]
+  )
+
+  if (!existingRows.length) {
+    throw new HttpError(404, 'Item not found')
+  }
+
+  const current = existingRows[0]
+
   const fields = []
   const values = []
 
@@ -209,9 +252,30 @@ export const updateItem = asyncHandler(async (req, res) => {
   }
 
   Object.entries(payload).forEach(([key, value]) => {
+    if (key === 'expirationDate') return
     fields.push(`${mapping[key]} = ?`)
     values.push(value === '' ? null : value)
   })
+
+  const effectivePurchaseDate = payload.purchaseDate ?? current.purchaseDate
+  const effectiveShelfLifeDays = payload.shelfLifeDays ?? current.shelfLifeDays
+  const hasExpirationField = Object.prototype.hasOwnProperty.call(payload, 'expirationDate')
+  const derivedExpiration = deriveExpirationDate(effectivePurchaseDate, effectiveShelfLifeDays)
+  let computedExpiration
+  if (hasExpirationField && payload.expirationDate != null) {
+    computedExpiration = payload.expirationDate
+  } else if (derivedExpiration !== undefined) {
+    computedExpiration = derivedExpiration
+  } else if (hasExpirationField) {
+    computedExpiration = null
+  } else {
+    computedExpiration = undefined
+  }
+
+  if (computedExpiration !== undefined) {
+    fields.push(`${mapping.expirationDate} = ?`)
+    values.push(computedExpiration)
+  }
 
   if (!fields.length) {
     throw new HttpError(400, 'No fields provided for update')
