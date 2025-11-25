@@ -78,6 +78,13 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
     [threshold]
   )
 
+  const windowExpr = `
+    CASE
+      WHEN i.Expiring_Soon_Days IS NOT NULL THEN i.Expiring_Soon_Days
+      ELSE ?
+    END
+  `
+
   const [expiringRows] = await pool.query(
     `SELECT i.Item_ID AS itemId,
             i.Item_Name AS itemName,
@@ -85,12 +92,12 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
             i.Unit AS unit,
             i.Purchase_Date AS purchaseDate,
             i.Expiration_Date AS expirationDate,
-            ? AS expiringWindowDays
+            ${windowExpr} AS expiringWindowDays
        FROM Item i
       WHERE i.Is_Deleted = 0
         AND i.Expiration_Date IS NOT NULL
         AND i.Expiration_Date BETWEEN CURDATE()
-            AND DATE_ADD(CURDATE(), INTERVAL ? DAY)
+            AND DATE_ADD(CURDATE(), INTERVAL ${windowExpr} DAY)
       ORDER BY i.Expiration_Date ASC`,
     [horizonDays, horizonDays]
   )
